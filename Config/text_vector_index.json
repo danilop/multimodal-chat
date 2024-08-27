@@ -1,0 +1,43 @@
+{
+    "mappings": {
+        "properties": {
+            "date": {
+                "type": "keyword"
+            },
+            "code": {
+                "type": "keyword"
+            },
+            "url": {
+                "type": "keyword"
+            },
+            "hostname": {
+                "type": "keyword"
+            },
+            "document": {
+                "type": "text"
+            },
+            "embedding_vector": {
+                "type": "knn_vector",
+                "dimension": 1024,
+                "method": {
+                    "engine": "nmslib",
+                    "space_type": "cosinesimil",
+                    "name": "hnsw",
+                    "parameters": {
+                        "ef_construction": 512,
+                        "m": 16
+                    }
+                }
+            }
+        }
+    },
+    "settings": {
+        "index": {
+            "number_of_shards": 2,
+            "knn.algo_param": {
+                "ef_search": 512
+            },
+            "knn": true
+        }
+    }
+}

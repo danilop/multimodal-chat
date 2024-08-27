@@ -1,0 +1,11 @@
+boto3
+gradio
+rich
+selenium
+html2text
+duckduckgo_search
+opensearch-py
+Pillow
+wikipedia
+pypandoc_binary
+pypdf

@@ -1,0 +1,7 @@
+numpy
+pandas
+mpmath
+numba
+tabulate
+matplotlib
+yfinance
