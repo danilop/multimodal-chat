@@ -34,6 +34,11 @@ See `./Config/tools.json` for an overview of the available tools, and how they c
    cd ..
    ```
 
+4. To use Selenium to browse the internet, you need ChromeDriver installed. Using Homebrew:
+   ```
+   brew install --cask chromedriver
+   ```
+
 ## Start OpenSearch locally
 
 These instructions start OpenSearch locally. You can use a remote server by updating the code creating the client. In that cae, you don't need these steps.
