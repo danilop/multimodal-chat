@@ -10,9 +10,9 @@ See `./Config/tools.json` for an overview of the available tools, and how they c
 
 ## Requirements
 
-1. A container tool (either docker or finch)
+1. A container tool (either [Docker](https://www.docker.com/) or [Finch](https://runfinch.com/)). To install Finch, follow the [instructions here](https://runfinch.com/).
 
-2. Python (3.12 or newer tested)
+3. Python (version 3.12 or newer tested).
 
 ## Installation
 
