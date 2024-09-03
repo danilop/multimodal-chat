@@ -38,7 +38,7 @@ ${CONTAINER_TOOL} tag ${IMAGE_NAME}:latest ${IMAGE_URI_WITH_TAG}
 ${CONTAINER_TOOL} push ${IMAGE_URI_WITH_TAG}
 
 echo "Writing image URI to file..."
-echo "${IMAGE_URI_WITH_TAG}" > ./Config/image_uri.txt
+echo "${IMAGE_URI_WITH_TAG}" > ../Config/image_uri.txt
 
 echo "Image URI: ${IMAGE_URI_WITH_TAG}"
 
