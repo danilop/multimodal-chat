@@ -121,7 +121,9 @@ For remote server setup, update the client creation code in the main script.
 
 The `Examples` section in the chat interface provides sample queries to help you get started. These demonstrate various capabilities of the chatbot, including web searches, code execution, and image-related tasks.
 
-## Demos
+## Demo videos
+
+Here are a few examples of what you can do this application.
 
 ### Browse the internet and use the semantic archive
 
