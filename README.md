@@ -121,6 +121,16 @@ For remote server setup, update the client creation code in the main script.
 
 The `Examples` section in the chat interface provides sample queries to help you get started. These demonstrate various capabilities of the chatbot, including web searches, code execution, and image-related tasks.
 
+## Demos
+
+### Browse the internet and use the semantic archive
+
+In this demo:
+- Browse websites using Selenium and specific tools for DuckDuckGo (search, news, geosearch) and Wikipedia
+- Use the semantic text archive tool to archive documents and retrieve by keywords
+
+https://youtu.be/4ZzYwmltEk4?si=ZLr5b6DcrfAr5Of_
+
 ## Troubleshooting
 
 - If you encounter issues with OpenSearch, check the connection settings and ensure the service is running
