@@ -129,7 +129,7 @@ In this demo:
 - Browse websites using Selenium and specific tools for DuckDuckGo (search, news, geosearch) and Wikipedia
 - Use the semantic text archive tool to archive documents and retrieve by keywords
 
-https://youtu.be/4ZzYwmltEk4?si=ZLr5b6DcrfAr5Of_
+[![Multimodal Chat Demo 1 – Browse the internet and use the semantic archive](https://img.youtube.com/vi/4ZzYwmltEk4/0.jpg)](https://www.youtube.com/watch?v=4ZzYwmltEk4)
 
 ## Troubleshooting
 
