@@ -54,8 +54,8 @@ OUTPUT_PATH = "./Output/"
 OPENSEARCH_HOST = 'localhost'
 OPENSEARCH_PORT = 9200
 
-MULTIMODAL_INDEX_NAME = "multimodal-index" 
-TEXT_INDEX_NAME = "text-index" 
+MULTIMODAL_INDEX_NAME = "multimodal-index"
+TEXT_INDEX_NAME = "text-index"
 MAX_EMBEDDING_IMAGE_SIZE = 5 * 1024 * 1024 # 5MB
 MAX_EMBEDDING_IMAGE_DIMENSIONS = 2048
 MAX_INFERENCE_IMAGE_SIZE = 3.75 * 1024 * 1024 # 3.75MB
@@ -67,8 +67,8 @@ JPEG_SAVE_QUALITY = 90
 DEFAULT_IMAGE_WIDTH = 512
 DEFAULT_IMAGE_HEIGHT = 512
 
-#AWS_REGION = 'us-east-1'
-AWS_REGION = 'us-west-2'
+AWS_REGION = 'us-east-1'
+#AWS_REGION = 'us-west-2'
 
 AWS_LAMBDA_FUNCTION_NAME = "yet-another-chatbot-function"
 MAX_OUTPUT_LENGTH = 4096 # 4K characters
@@ -82,7 +82,10 @@ IMAGE_GENERATION_MODEL_UD = 'amazon.titan-image-generator-v2:0'
 # True to handle document-to-text translation in code instead of using the Bedrock Converse API Document Chat capability
 HANDLE_DOCUMENT_TO_TEXT_IN_CODE = True
 
-MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
+# Using cross-region inference profiles
+MODEL_ID = 'us.anthropic.claude-3-5-sonnet-20240620-v1:0'
+
+#MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
 #MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0'
 #MODEL_ID = 'anthropic.claude-3-haiku-20240307-v1:0'
 #MODEL_ID = 'meta.llama3-1-405b-instruct-v1:0'
@@ -100,7 +103,7 @@ MAX_LOOPS = 128
 
 MAX_WORKERS = 10
 
-MIN_CHUNK_LENGTH = 800    
+MIN_CHUNK_LENGTH = 800
 MAX_CHUNK_LENGTH = 900
 
 MAX_SEARCH_RESULTS = 10
@@ -109,14 +112,33 @@ MAX_IMAGE_SEARCH_RESULTS = 3
 
 DEFAULT_TEMPERATURE = 0.5
 
-DEFAULT_SYSTEM_PROMPT = """You are an helpful AI assistant. Think step-by-step. Build a plan. Follow instructions carefully.
-Use the appropriate tool for a task. Use more than one tool to provide the best answer.
-As first step, always compute and replace relative dates (today, tomorrow, last week, this year) into exact dates (January 1, 1970).
-Before searching or browsing the internet, ask questions to check if you have information in the archive to improve your answer.
-Always browse the actual websites and URLs to get updated and detailed info.
-Use existing images when possible and don't generate new images unless really necessary.
-Don't mention the name of the tools to the user.
-Never show or tell an 'image_id' to the user. Don't use the term 'image_id' with users."""
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant with access to various tools and information sources.
+Follow these guidelines:
+
+1. Prioritize using available tools and information sources over relying on your general knowledge.
+
+2. For internet-based queries:
+   a. Start with a broad search to identify 3 to 5relevant websites and sources.
+   b. Then, use the browser tool to visit specific pages and gather detailed information.
+   c. Synthesize information from multiple sources for a comprehensive answer.
+
+3. Utilize the archive tool to retrieve previously stored information relevant to the query.
+
+4. Use step-by-step thinking to break down complex tasks into smaller, manageable steps.
+
+5. Employ multiple tools when necessary to provide the most accurate and complete answer.
+
+6. Only generate new images if explicitly requested by the user.
+
+7. Do not mention tool names or 'image_id' to the user. Refer to images descriptively.
+
+8. Continuously improve based on user feedback and interaction outcomes.
+
+9. If you're unsure about something, acknowledge it and suggest ways to find the information.
+
+10. Provide sources or references for the information you present when possible.
+
+Remember to adapt your approach based on the specific query and context of the conversation."""
 
 IMAGE_FORMATS = ['png', 'jpeg', 'gif', 'webp']
 DOCUMENT_FORMATS = ['pdf', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'html', 'txt', 'md']
@@ -129,13 +151,27 @@ TOOLS_TIMEOUT = 300  # Timeout in seconds
 opensearch_client = None
 
 # AWS SDK for Python (Boto3) clients
-bedrock_runtime_config = Config(connect_timeout=300, read_timeout=300, retries={'max_attempts': 4})
-bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION, config=bedrock_runtime_config)
+# bedrock_runtime_config = Config(connect_timeout=300, read_timeout=300, retries={'max_attempts': 4})
+# bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION, config=bedrock_runtime_config)
+bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
 iam_client = boto3.client('iam', region_name=AWS_REGION)
 lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 
 
 def load_json_config(filename: str) -> dict:
+    """
+    Load a JSON configuration file and return its contents as a dictionary.
+
+    Args:
+        filename (str): The path to the JSON file to be loaded.
+
+    Returns:
+        dict: The contents of the JSON file as a dictionary.
+
+    Raises:
+        JSONDecodeError: If the file is not valid JSON.
+        FileNotFoundError: If the specified file does not exist.
+    """
     with open(filename, 'r') as f:
         config = json.load(f)
     return config
@@ -147,7 +183,24 @@ MULTIMODAL_INDEX_CONFIG = load_json_config("./Config/multimodal_vector_index.jso
 EXAMPLES = load_json_config('./Config/examples.json')
 
 
-def add_as_output(content, state):
+def add_as_output(content:dict|str, state:dict):
+    """
+    Add content to the output state, avoiding duplicate images.
+
+    This function checks if the content is an image (has an 'image_id') and ensures
+    that duplicate images are not added to the output. If the content is not a
+    duplicate image or is not an image at all, it is appended to the output list.
+
+    Args:
+        content (dict): The content to be added to the output. May contain an 'image_id' key.
+        state (dict): The current state containing the 'output' list.
+
+    Returns:
+        None
+
+    Note:
+        If a duplicate image is detected, the function returns early without adding it.
+    """
     # Avoid to show duplicate images
     if 'image_id' in content:
         image = content
@@ -157,7 +210,24 @@ def add_as_output(content, state):
     state['output'].append(content)
 
 
-def get_opensearch_client():
+def get_opensearch_client() -> OpenSearch:
+    """
+    Create and return an OpenSearch client.
+
+    This function creates an OpenSearch client with SSL/TLS enabled but hostname
+    verification disabled. It uses the OPENSEARCH_PASSWORD environment variable
+    for authentication.
+
+    Returns:
+        OpenSearch: An initialized OpenSearch client.
+
+    Raises:
+        Exception: If the OPENSEARCH_PASSWORD environment variable is not set.
+
+    Note:
+        This function uses SSL/TLS without certificate verification, which may
+        be insecure in production environments.
+    """
     password = os.environ.get('OPENSEARCH_PASSWORD') or ''
     if len(password) == 0:
         raise Exception("OPENSEARCH_PASSWORD environment variable is not set.")
@@ -177,7 +247,17 @@ def get_opensearch_client():
     return client
 
 
-def delete_index(client, index_name):
+def delete_index(client: OpenSearch, index_name: str) -> None:
+    """
+    Delete an index from OpenSearch if it exists.
+
+    Args:
+        client (OpenSearch): The OpenSearch client.
+        index_name (str): The name of the index to be deleted.
+
+    Note:
+        This function prints the result of the deletion attempt or any exception that occurs.
+    """
     if client.indices.exists(index=index_name):
         try:
             _ = client.indices.delete(
@@ -187,26 +267,76 @@ def delete_index(client, index_name):
         except Exception as ex: print(ex)
 
 
-def create_index(client, index_name, index_config):
+def create_index(client: OpenSearch, index_name: str, index_config: dict) -> None:
+    """
+    Create an index in OpenSearch if it doesn't already exist.
+
+    Args:
+        client (OpenSearch): The OpenSearch client.
+        index_name (str): The name of the index to be created.
+        index_config (dict): The configuration for the index.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If there's an error during index creation.
+
+    Note:
+        This function prints the result of the creation attempt.
+        If the index already exists, no action is taken.
+    """
     if not client.indices.exists(index=index_name):
         try:
             _ = client.indices.create(
                 index=index_name,
                 body=index_config,
-            ) 
+            )
             print(f"Index {index_name} created.")
         except Exception as ex: print(ex)
 
 
-def print_index_info():
-    global opensearch_client
+def print_index_info(client: OpenSearch, index_name: str) -> None:
+    """
+    Print information about the multimodal index.
+
+    This function attempts to retrieve and print the configuration of the
+    MULTIMODAL_INDEX_NAME index from OpenSearch. If successful, it prints
+    the index information in a formatted JSON structure. If an exception
+    occurs during the process, it prints the exception details.
+
+    Global variables:
+        opensearch_client: The OpenSearch client used to interact with the index.
+
+    Note:
+        This function assumes that the opensearch_client has been properly
+        initialized and that the MULTIMODAL_INDEX_NAME constant is defined.
+    """
     try:
-        response = opensearch_client.indices.get(MULTIMODAL_INDEX_NAME) 
+        response = client.indices.get(MULTIMODAL_INDEX_NAME)
         print(json.dumps(response, indent=2))
     except Exception as ex: print(ex)
 
 
-def get_image_bytes(image_source, max_image_size=None, max_image_dimension=None):
+def get_image_bytes(image_source: str, max_image_size: int | None = None, max_image_dimension: int | None = None) -> bytes:
+    """
+    Retrieve image bytes from a source and optionally resize the image.
+
+    This function can handle both URL and local file path sources. It will
+    resize the image if it exceeds the specified maximum size or dimension.
+
+    Args:
+        image_source (str): URL or local path of the image.
+        max_image_size (int, optional): Maximum allowed size of the image in bytes.
+        max_image_dimension (int, optional): Maximum allowed dimension (width or height) of the image.
+
+    Returns:
+        bytes: The image data as bytes, potentially resized.
+
+    Note:
+        If resizing is necessary, the function will progressively reduce the image size
+        until it meets the specified constraints. The resized image is saved in JPEG format.
+    """
     if image_source.startswith(('http://', 'https://')):
         # Download image from URL
         with urllib.request.urlopen(image_source) as response:
@@ -245,19 +375,56 @@ def get_image_bytes(image_source, max_image_size=None, max_image_dimension=None)
     return image_bytes.getvalue()
 
 
-def get_image_base64(image_source, max_image_size=None, max_image_dimension=None):
+def get_image_base64(image_source: str, max_image_size: int | None = None, max_image_dimension: int | None = None) -> str:
+    """
+    Convert an image to a base64-encoded string, with optional resizing.
+
+    Args:
+        image_source (str): URL or local path of the image.
+        max_image_size (int, optional): Maximum allowed size of the image in bytes.
+        max_image_dimension (int, optional): Maximum allowed dimension (width or height) of the image.
+
+    Returns:
+        str: Base64-encoded string representation of the image.
+
+    Note:
+        This function uses get_image_bytes to retrieve and potentially resize the image
+        before encoding it to base64.
+    """
     image_bytes = get_image_bytes(image_source, max_image_size, max_image_dimension)
     return base64.b64encode(image_bytes).decode('utf-8')
 
 
-def get_embedding(image_base64:str=None, input_text:str=None, multimodal:str=False):
+def get_embedding(image_base64: str | None = None, input_text: str | None = None, multimodal: bool = False) -> list[float] | None:
+    """
+    Generate an embedding vector for the given image and/or text input using Amazon Bedrock.
+
+    This function can handle text-only, image-only, or multimodal (text + image) inputs.
+    It selects the appropriate embedding model based on the input types and the multimodal flag.
+
+    Args:
+        image_base64 (str | None, optional): Base64-encoded image string. Defaults to None.
+        input_text (str | None, optional): Text input for embedding. Defaults to None.
+        multimodal (bool, optional): Flag to force multimodal embedding. Defaults to False.
+
+    Returns:
+        list[float] | None: The embedding vector as a list of floats, or None if no valid input is provided.
+
+    Raises:
+        Exception: If there's an error in the Bedrock API call.
+
+    Note:
+        - The function uses global variables EMBEDDING_MULTIMODAL_MODEL_ID and EMBEDDING_TEXT_MODEL_ID
+          to determine which model to use.
+        - The bedrock_runtime_client is assumed to be a global or imported variable.
+    """
     body = {}
     if input_text is not None:
         body["inputText"] = input_text
 
     if image_base64 is not None:
         body["inputImage"] = image_base64
-    
+
     if multimodal or 'inputImage' in body:
         embedding_model_id = EMBEDDING_MULTIMODAL_MODEL_ID
     elif 'inputText' in body:
@@ -270,7 +437,7 @@ def get_embedding(image_base64:str=None, input_text:str=None, multimodal:str=Fal
         modelId=embedding_model_id,
         accept="application/json", contentType="application/json",
     )
-    
+
     response_body = json.loads(response.get('body').read())
     finish_reason = response_body.get("message")
     if finish_reason is not None:
@@ -281,7 +448,32 @@ def get_embedding(image_base64:str=None, input_text:str=None, multimodal:str=Fal
     return embedding_vector
 
 
-def invoke_text_model(messages, system_prompt=None, temperature=0, tools=None, return_last_message_only=False):
+def invoke_text_model(messages: list[dict], system_prompt: str | None = None, temperature: float = 0, tools: list[dict] | None = None, return_last_message_only: bool = False) -> dict | str:
+    """
+    Invoke the text model using Amazon Bedrock's converse API.
+
+    This function prepares the request body, handles retries for throttling exceptions,
+    and processes the response from the model.
+
+    Args:
+        messages (list): List of message dictionaries to be sent to the model.
+        system_prompt (str, optional): System prompt to be added to the request. Defaults to None.
+        temperature (float, optional): Temperature setting for the model. Defaults to 0.
+        tools (list, optional): List of tools to be used by the model. Defaults to None.
+        return_last_message_only (bool, optional): If True, returns only the last message from the model. Defaults to False.
+
+    Returns:
+        dict or str: If return_last_message_only is False, returns the full response dictionary.
+                     If True, returns only the text of the last message from the model.
+                     In case of an error, returns an error message string.
+
+    Raises:
+        Exception: Propagates any exceptions not related to throttling.
+
+    Note:
+        This function uses global variables MODEL_ID, MAX_TOKENS, MIN_RETRY_WAIT_TIME, and MAX_RETRY_WAIT_TIME.
+        It also uses the global bedrock_runtime_client for API calls.
+    """
     global bedrock_runtime_client
 
     converse_body = {
@@ -294,10 +486,6 @@ def invoke_text_model(messages, system_prompt=None, temperature=0, tools=None, r
     }
 
     if system_prompt is not None:
-        # Add current date and time to the system prompt
-        current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
-        current_time = datetime.now().strftime("%I:%M:%S %p")
-        system_prompt += f"\nWhen processing dates and times, consider that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
         converse_body["system"] = [{"text": system_prompt}]
 
     if tools:
@@ -319,7 +507,7 @@ def invoke_text_model(messages, system_prompt=None, temperature=0, tools=None, r
                 print(f"Waiting {retry_wait_time} seconds...")
                 time.sleep(retry_wait_time)
                 # Double the wait time for the next try
-                retry_wait_time *= 2 
+                retry_wait_time *= 2
                 print("Retrying...")
             else:
                 # Handle other client errors
@@ -339,13 +527,48 @@ def invoke_text_model(messages, system_prompt=None, temperature=0, tools=None, r
     return response
 
 
-def get_base_url(url):
+def get_base_url(url: str) -> str:
+    """
+    Extract the base URL from a given URL.
+
+    This function takes a full URL and returns its base URL, which consists
+    of the scheme (e.g., 'http', 'https') and the network location (domain).
+
+    Args:
+        url (str): The full URL to be processed.
+
+    Returns:
+        str: The base URL, in the format "scheme://domain/".
+
+    Example:
+        >>> get_base_url("https://www.example.com/page?param=value")
+        "https://www.example.com/"
+    """
     parsed_url = urlparse(url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
     return base_url
 
 
-def mark_down_formatting(html_text: str, url: str):
+def mark_down_formatting(html_text: str, url: str) -> str:
+    """
+    Convert HTML text to Markdown format with preserved hyperlinks and images.
+
+    This function takes HTML text and a base URL, then converts the HTML to Markdown
+    while maintaining the structure of links and images. It uses the html2text library
+    for the conversion process.
+
+    Args:
+        html_text (str): The HTML text to be converted to Markdown.
+        url (str): The base URL used for resolving relative links.
+
+    Returns:
+        str: The converted Markdown text.
+
+    Note:
+        This function preserves image links, hyperlinks, and list structures.
+        It disables line wrapping and converts relative URLs to absolute URLs
+        based on the provided base URL.
+    """
     h = html2text.HTML2Text()
 
     base_url = get_base_url(url)
@@ -363,7 +586,25 @@ def mark_down_formatting(html_text: str, url: str):
     return markdown_text
 
 
-def remove_xml_tags(text: str):
+def remove_xml_tags(text: str) -> str:
+    """
+    Remove specific XML tags and their content, as well as all other XML tags (but not their content) from the input text.
+
+    This function performs two main operations:
+    1. Removes specified XML tags ('search_quality_reflection', 'search_quality_score', 'image_quality_score')
+       and their content completely.
+    2. Removes all other XML tags, but keeps their content, excluding comments (starting with "<!").
+
+    Args:
+        text (str): The input text containing XML tags.
+
+    Returns:
+        str: The cleaned text with specified XML tags and content removed, and all other XML tags stripped.
+
+    Note:
+        This function uses regular expressions for tag removal, which may not be suitable for
+        processing very large XML documents due to performance considerations.
+    """
     cleaned_text = text
 
     # Remove self reflection XML tags and their content
@@ -377,14 +618,47 @@ def remove_xml_tags(text: str):
 
 
 def with_xml_tag(text: str, tag: str) -> str:
+    """
+    Wrap the given text with specified XML tags.
+
+    Args:
+        text (str): The text to be wrapped.
+        tag (str): The XML tag to use for wrapping.
+
+    Returns:
+        str: The text wrapped in the specified XML tags.
+
+    Example:
+        >>> with_xml_tag("Hello, World!", "greeting")
+        '<greeting>Hello, World!</greeting>'
+    """
     return f"<{tag}>{text}</{tag}>"
 
 
-def split_text_for_collection(text: str):
+def split_text_for_collection(text: str) -> list[str]:
+    """
+    Split the input text into chunks suitable for indexing or processing.
+
+    This function splits the input text into chunks based on sentence boundaries
+    and length constraints. It aims to create chunks that are between MIN_CHUNK_LENGTH
+    and MAX_CHUNK_LENGTH characters long, while trying to keep sentences together.
+
+    Args:
+        text (str): The input text to be split into chunks.
+
+    Returns:
+        list: A list of text chunks, where each chunk is a string.
+
+    Note:
+        - The function uses regular expressions to split the text into sentences.
+        - It attempts to keep sentences together in chunks when possible.
+        - The constants MIN_CHUNK_LENGTH and MAX_CHUNK_LENGTH should be defined
+          elsewhere in the code to control the size of the chunks.
+    """
     chunks = []
 
     sentences = re.split(r'\. |\n|[)}\]][^a-zA-Z0-9]*[({\[]', text)
-    
+
     chunk = ''
     next_chunk = ''
     for sentence in sentences:
@@ -405,7 +679,35 @@ def split_text_for_collection(text: str):
     return chunks
 
 
-def add_to_text_index(text: str, id: str, metadata: dict, metadata_delete: dict|None=None):
+def add_to_text_index(text: str, id: str, metadata: dict, metadata_delete: dict|None=None) -> None:
+    """
+    Add text content to the text index in OpenSearch.
+
+    This function processes the input text, splits it into chunks, computes embeddings,
+    and indexes the documents in OpenSearch. It can optionally delete existing content
+    based on metadata before indexing new content.
+
+    Args:
+        text (str): The text content to be indexed.
+        id (str): A unique identifier for the text content.
+        metadata (dict): Additional metadata to be stored with the text.
+        metadata_delete (dict|None, optional): Metadata used to delete existing content
+                                               before indexing. Defaults to None.
+
+    Returns:
+        None
+
+    Behavior:
+        1. If metadata_delete is provided, it deletes existing content matching that metadata.
+        2. Splits the input text into chunks.
+        3. Processes each chunk in parallel, computing embeddings.
+        4. Indexes all processed chunks in bulk to OpenSearch.
+        5. Prints information about the indexing process.
+
+    Note:
+        This function uses global variables opensearch_client, TEXT_INDEX_NAME, and MAX_WORKERS.
+        It also relies on external functions split_text_for_collection and get_embedding.
+    """
     global opensearch_client
 
     if metadata_delete is not None:
@@ -457,7 +759,31 @@ def add_to_text_index(text: str, id: str, metadata: dict, metadata_delete: dict|
     print(f"Indexed {success} documents successfully, {failed} documents failed.")
 
 
-def add_to_multimodal_index(image: dict, image_base64: str):
+def add_to_multimodal_index(image: dict, image_base64: str) -> None:
+    """
+    Add an image and its metadata to the multimodal index in OpenSearch.
+
+    This function computes an embedding vector for the image and its description,
+    then indexes this information along with other image metadata in OpenSearch.
+
+    Args:
+        image (dict): A dictionary containing image metadata including:
+            - format: The image format (e.g., 'png', 'jpeg')
+            - filename: The name of the image file
+            - description: A textual description of the image
+            - id: A unique identifier for the image
+        image_base64 (str): The base64-encoded string representation of the image
+
+    Note:
+        This function uses the global opensearch_client to interact with OpenSearch.
+        It assumes that MULTIMODAL_INDEX_NAME is defined as a global constant.
+
+    Raises:
+        Any exceptions raised by the OpenSearch client or the get_embedding function.
+
+    Returns:
+        None. The function prints the indexing result to the console.
+    """
     global opensearch_client
 
     embedding_vector = get_embedding(image_base64=image_base64, input_text=image['description'])
@@ -476,13 +802,49 @@ def add_to_multimodal_index(image: dict, image_base64: str):
     print(f"Multimodel index result: {response['result']}")
 
 
-def get_image_hash(image_bytes):
+def get_image_hash(image_bytes: bytes) -> str:
+    """
+    Compute a SHA-256 hash for the given image bytes.
+
+    This function takes the raw bytes of an image and computes a unique
+    hash value using the SHA-256 algorithm. This hash can be used as a
+    unique identifier for the image content.
+
+    Args:
+        image_bytes (bytes): The raw bytes of the image.
+
+    Returns:
+        str: A hexadecimal string representation of the SHA-256 hash.
+
+    Note:
+        This function is deterministic, meaning the same image bytes
+        will always produce the same hash value.
+    """
     hash_obj = hashlib.sha256()
     hash_obj.update(image_bytes)
     return hash_obj.hexdigest()
 
 
 def store_image(image_format: str, image_base64: str, import_image_id:str=''):
+    """
+    Store an image in the file system and index it in the multimodal database.
+
+    This function takes a base64-encoded image, stores it in the file system,
+    generates a description using a text model, and indexes it in the multimodal database.
+
+    Args:
+        image_format (str): The format of the image (e.g., 'png', 'jpeg').
+        image_base64 (str): The base64-encoded string of the image.
+        import_image_id (str, optional): An ID to use for importing an existing image. Defaults to ''.
+
+    Returns:
+        dict: A dictionary containing the image metadata if successful, None if there's an ID mismatch.
+
+    Note:
+        - If the image already exists in the index, it returns the existing metadata without re-indexing.
+        - The function uses global variables IMAGE_PATH and IMAGE_DESCRIPTION_PROMPT.
+        - It relies on external functions get_image_hash, get_image_by_id, invoke_text_model, and add_to_multimodal_index.
+    """
     image_bytes = base64.b64decode(image_base64)
     image_id = get_image_hash(image_bytes)
 
@@ -508,7 +870,7 @@ def store_image(image_format: str, image_base64: str, import_image_id:str=''):
 
     image_description = invoke_text_model(messages, return_last_message_only=True)
     print(f"Image description: {image_description}")
-    
+
     image = {
         "id": image_id,
         "format": image_format,
@@ -521,10 +883,29 @@ def store_image(image_format: str, image_base64: str, import_image_id:str=''):
     return image
 
 
-def get_image_by_id(image_id: str, return_base64=False) -> dict|str:
+def get_image_by_id(image_id: str, return_base64: bool = False) -> dict|str:
+    """
+    Retrieve image metadata from the multimodal index by its ID.
+
+    Args:
+        image_id (str): The unique identifier of the image.
+        return_base64 (bool, optional): If True, include the base64-encoded image data in the result. Defaults to False.
+
+    Returns:
+        dict: A dictionary containing the image metadata if found.
+        str: An error message if the image is not found or there's an error.
+
+    Raises:
+        NotFoundError: If the image is not found in the index.
+        Exception: For any other errors during the retrieval process.
+
+    Note:
+        This function uses the global opensearch_client to query the MULTIMODAL_INDEX_NAME.
+        If return_base64 is True, it also reads the image file and includes its base64 encoding.
+    """
     try:
         response = opensearch_client.get(
-            id=image_id, 
+            id=image_id,
             index=MULTIMODAL_INDEX_NAME,
             _source_includes=["format", "filename", "description"],
         )
@@ -535,16 +916,36 @@ def get_image_by_id(image_id: str, return_base64=False) -> dict|str:
         return image
     except NotFoundError:
         return "Not found."
-    except Exception as ex: 
+    except Exception as ex:
         error_message = f"Error: {ex}"
         print(error_message)
         return error_message
 
 
-def search_images(query: str, index_name: str) -> list|str:
+def search_images(query: str, index_name: str) -> list[dict]|str:
+    """
+    Search for images in the specified OpenSearch index.
+
+    This function executes a search query against the given OpenSearch index
+    and returns the matching image metadata.
+
+    Args:
+        query (str): The search query to execute.
+        index_name (str): The name of the index to search in.
+
+    Returns:
+        list: A list of dictionaries containing image metadata if images are found.
+        str: An error message if no images are found or there's an error.
+
+    Raises:
+        Exception: If there's an error during the search process.
+
+    Note:
+        This function uses the global opensearch_client to perform the search.
+    """
     try:
         response = opensearch_client.search(
-            body=query, 
+            body=query,
             index=index_name
         )
         hits = response['hits']['hits']
@@ -557,13 +958,35 @@ def search_images(query: str, index_name: str) -> list|str:
             image['id'] = h['_id']
             images.append(image)
         return images
-    except Exception as ex: 
+    except Exception as ex:
         error_message = f"Error: {ex}"
         print(error_message)
         return error_message
 
 
-def get_images_by_description(description: str, max_results: int):
+def get_images_by_description(description: str, max_results: int) -> list[dict]:
+    """
+    Retrieve images from the multimodal index based on a text description.
+
+    This function performs a two-step process:
+    1. It uses a multimodal embedding to find similar images in the index.
+    2. It then filters these results using a language model to ensure relevance to the description.
+
+    Args:
+        description (str): The text description to match against image descriptions.
+        max_results (int): The maximum number of results to return.
+
+    Returns:
+        list: A list of dictionaries containing metadata for matching images.
+
+    Note:
+        This function uses global variables MULTIMODAL_INDEX_NAME, IMAGE_FILTER_PROMPT,
+        and relies on external functions get_embedding, search_images, with_xml_tag,
+        and invoke_text_model.
+
+    Raises:
+        Any exceptions raised by the called functions are not explicitly handled here.
+    """
     multimodal_text_embedding = get_embedding(input_text=description, multimodal=True)
     query = {
         "size": max_results,
@@ -584,7 +1007,7 @@ def get_images_by_description(description: str, max_results: int):
     prompt = (IMAGE_FILTER_PROMPT + '\n' +
               with_xml_tag(json.dumps(images), 'json_list') + '\n' +
               with_xml_tag(description, 'description'))
-    
+
     messages = [{
         "role": "user",
         "content": [ { "text": prompt } ],
@@ -597,7 +1020,29 @@ def get_images_by_description(description: str, max_results: int):
 
     return filtered_images
 
-def get_images_by_similarity(image_id: str, max_results: int):
+def get_images_by_similarity(image_id: str, max_results: int) -> list[dict]:
+    """
+    Retrieve images from the multimodal index that are similar to a given image.
+
+    This function finds images in the index that are similar to the image specified by the image_id.
+    It uses multimodal embedding to compare the reference image with other images in the catalog.
+
+    Args:
+        image_id (str): The unique identifier of the reference image.
+        max_results (int): The maximum number of similar images to retrieve.
+
+    Returns:
+        list: A list of dictionaries containing metadata for similar images, sorted by similarity.
+             Each dictionary includes keys such as 'id', 'format', 'filename', and 'description'.
+        str: An error message if the reference image is not found or if there's an error in retrieval.
+
+    Note:
+        This function uses global variables MULTIMODAL_INDEX_NAME and relies on external functions
+        get_image_by_id, get_embedding, and search_images.
+
+    Raises:
+        Any exceptions raised by the called functions are not explicitly handled here.
+    """
     image = get_image_by_id(image_id, return_base64=True)
     if type(image) is not dict:
         return "Image not found."
@@ -625,7 +1070,22 @@ def get_images_by_similarity(image_id: str, max_results: int):
     return similar_images
 
 
-def get_random_images(num: int):
+def get_random_images(num: int) -> list[dict]:
+    """
+    Retrieve a specified number of random images from the image catalog.
+
+    Args:
+        num (int): The number of random images to retrieve.
+
+    Returns:
+        list: A list of dictionaries containing metadata for the randomly selected images.
+              Each dictionary includes keys such as 'id', 'format', 'filename', and 'description'.
+        str: An error message if there's an issue retrieving the images.
+
+    Note:
+        This function uses the global opensearch_client to query the MULTIMODAL_INDEX_NAME.
+        It uses a random score function to ensure randomness in the selection.
+    """
     query = {
         "size": num,
         "query": { "function_score": { "random_score": {} } },
@@ -635,7 +1095,25 @@ def get_random_images(num: int):
     return images
 
 
-def get_tool_result_python(tool_input, state):
+def get_tool_result_python(tool_input: dict, state: dict) -> str:
+    """
+    Execute a Python script using AWS Lambda and process the result.
+
+    This function sends a Python script to an AWS Lambda function for execution,
+    captures the output, and formats it for display in the chat interface.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'script' key with the Python code to execute.
+        state (dict): The current state of the chat interface.
+
+    Returns:
+        str: The output of the Python script execution, wrapped in XML tags.
+
+    Note:
+        - The function uses a global variable AWS_LAMBDA_FUNCTION_NAME for the Lambda function name.
+        - It adds the script and its output to the chat interface's state for display.
+        - The output is truncated if it exceeds MAX_OUTPUT_LENGTH.
+    """
     input_script = tool_input["script"]
     print(f"Script:\n{input_script}")
     start_time = time.time()
@@ -653,20 +1131,26 @@ def get_tool_result_python(tool_input, state):
         return warning_message
     if len_output > MAX_OUTPUT_LENGTH:
         output = output[:MAX_OUTPUT_LENGTH] + "\n... (truncated)"
-    add_as_output(
-        { "format": "text", "text": f"Python script:\n\n```python\n{input_script}\n```\n" },
-        state
-    )
-    add_as_output(
-         { "format": "text", "text": f"Output:\n\n```\n{output}\n```\n" },
-         state
-    )
-    print(f"Output:\n---\n{output}\n---\nThe script and its output will be shared with the user at the of your message.")
+    print(f"Output:\n---\n{output}\n---\nThe user cannot see the script and its output unless you explicitly tell them.")
 
     return f"{with_xml_tag(output, 'output')}"
 
 
-def get_tool_result_duckduckgo_text(tool_input, _state):
+def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict) -> str:
+    """
+    Perform a DuckDuckGo text search and store the results in the archive.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'keywords' for the search.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results and a message about archiving.
+
+    Note:
+        This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
+        It also adds the search results to the text index for future retrieval.
+    """
     search_keywords = tool_input["keywords"]
     print(f"Keywords: {search_keywords}")
     try:
@@ -692,7 +1176,21 @@ def get_tool_result_duckduckgo_text(tool_input, _state):
     )
 
 
-def get_tool_result_duckduckgo_news(tool_input, _state):
+def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict) -> str:
+    """
+    Perform a DuckDuckGo news search and store the results in the archive.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'keywords' for the search.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results and a message about archiving.
+
+    Note:
+        This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
+        It also adds the search results to the text index for future retrieval.
+    """
     search_keywords = tool_input["keywords"]
     print(f"Keywords: {search_keywords}")
     try:
@@ -718,7 +1216,21 @@ def get_tool_result_duckduckgo_news(tool_input, _state):
     )
 
 
-def get_tool_result_duckduckgo_maps(tool_input, _state):
+def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict) -> str:
+    """
+    Perform a DuckDuckGo maps search and store the results in the archive.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'keywords' and 'place' for the search.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results and a message about archiving.
+
+    Note:
+        This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
+        It also adds the search results to the text index for future retrieval.
+    """
     search_keywords = tool_input["keywords"]
     search_place = tool_input["place"]
     print(f"Keywords: {search_keywords}")
@@ -746,7 +1258,21 @@ def get_tool_result_duckduckgo_maps(tool_input, _state):
     )
 
 
-def get_tool_result_wikipedia_search(tool_input, _state):
+def get_tool_result_wikipedia_search(tool_input: dict, _state: dict) -> str:
+    """
+    Perform a Wikipedia search and return the results.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'query' for the search.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results.
+
+    Note:
+        This function uses the Wikipedia API to perform the search and returns
+        the results as a JSON string wrapped in XML tags.
+    """
     search_query = tool_input["query"]
     print(f"Query: {search_query}")
     try:
@@ -760,11 +1286,29 @@ def get_tool_result_wikipedia_search(tool_input, _state):
     return with_xml_tag(output, "output")
 
 
-def get_tool_result_wikipedia_geodata_search(tool_input, _state):
+def get_tool_result_wikipedia_geodata_search(tool_input: dict, _state: dict) -> str:
+    """
+    Perform a Wikipedia geosearch and return the results.
+
+    Args:
+        tool_input (dict): A dictionary containing the search parameters:
+            - latitude (float): The latitude of the search center.
+            - longitude (float): The longitude of the search center.
+            - title (str, optional): The title of a page to search for.
+            - radius (int, optional): The search radius in meters.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results as a JSON string.
+
+    Note:
+        This function uses the Wikipedia API to perform a geosearch and returns
+        the results as a JSON string wrapped in XML tags.
+    """
     latitude = tool_input["latitude"]
     longitude = tool_input["longitude"]
-    search_title = tool_input.get("title", None)  # Optional
-    radius = tool_input.get("radius", None)  # Optional
+    search_title = tool_input.get("title")  # Optional
+    radius = tool_input.get("radius")  # Optional
     print(f"Latitude: {latitude}")
     print(f"Longitude: {longitude}")
     print(f"Title: {search_title}")
@@ -782,7 +1326,25 @@ def get_tool_result_wikipedia_geodata_search(tool_input, _state):
     return with_xml_tag(output, "output")
 
 
-def get_tool_result_wikipedia_page(tool_input, _state):
+def get_tool_result_wikipedia_page(tool_input: dict, _state: dict) -> str:
+    """
+    Retrieve and process a Wikipedia page, storing its content in the archive.
+
+    This function fetches a Wikipedia page based on the given title, converts its HTML content
+    to Markdown format, and stores it in the text index for future retrieval.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'title' key with the Wikipedia page title.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: A message indicating that the page content has been stored in the archive.
+
+    Note:
+        This function uses the wikipedia library to fetch page content and the mark_down_formatting
+        function to convert HTML to Markdown. It also uses add_to_text_index to store the content
+        in the archive with appropriate metadata.
+    """
     search_title = tool_input["title"]
     print(f"Title: {search_title}")
     try:
@@ -800,7 +1362,26 @@ def get_tool_result_wikipedia_page(tool_input, _state):
     return f"The full content of the page has been stored in the archive so that you can retrieve what you need."
 
 
-def get_tool_result_browser(tool_input, _state):
+def get_tool_result_browser(tool_input: dict, _state: dict) -> str:
+    """
+    Retrieve and process content from a given URL using Selenium.
+
+    This function uses Selenium WebDriver to navigate to the specified URL,
+    retrieve the page content, convert it to Markdown format, and store it
+    in the text index for future retrieval.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'url' key with the target URL.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: A message indicating that the content has been stored in the archive.
+
+    Note:
+        This function uses Selenium with Chrome in headless mode to retrieve page content.
+        It also uses mark_down_formatting to convert HTML to Markdown and add_to_text_index
+        to store the content in the archive with appropriate metadata.
+    """
     url = tool_input["url"]
     print(f"URL: {url}")
 
@@ -811,10 +1392,9 @@ def get_tool_result_browser(tool_input, _state):
             content_length = f.headers.get("Content-Length", 0)
         print(f"Status: {status}")
         print(f"Content length: {content_length}")
-        if status >= 400:
-            return f"HTTP status {status}"
-    except Exception as e:
-        print(f"Error: {e}")
+    except Exception:
+        # Ignore the error and try again with Selenium
+        pass
 
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
@@ -845,7 +1425,25 @@ def get_tool_result_browser(tool_input, _state):
     return f"The full content of the URL ({len(markdown_text)} characters) has been stored in the archive. You can retrieve what you need using keywords."
 
 
-def get_tool_result_retrive_from_archive(tool_input, _state):
+def get_tool_result_retrive_from_archive(tool_input: dict, _state: dict) -> str:
+    """
+    Retrieve content from the archive based on given keywords.
+
+    This function searches the text index using the provided keywords and returns
+    the matching documents.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'keywords' to search for.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: XML-tagged output containing the search results as a JSON string.
+
+    Note:
+        This function uses global variables TEXT_INDEX_NAME and MAX_ARCHIVE_RESULTS
+        to perform the search. It also relies on external functions get_embedding
+        and opensearch_client for searching the index.
+    """
     keywords = tool_input["keywords"]
     print(f"Keywords: {keywords}")
 
@@ -870,7 +1468,23 @@ def get_tool_result_retrive_from_archive(tool_input, _state):
     return with_xml_tag(documents, "archive")
 
 
-def get_tool_result_store_in_archive(tool_input, _state):
+def get_tool_result_store_in_archive(tool_input: dict, _state: dict) -> str:
+    """
+    Store content in the archive.
+
+    This function takes the provided content and stores it in the text index
+    with the current date as metadata.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'content' key with the text to be stored.
+        _state (dict): The current state of the chat interface (unused in this function).
+
+    Returns:
+        str: A message indicating whether the content was successfully stored or an error occurred.
+
+    Note:
+        This function uses the global function add_to_text_index to store the content in the archive.
+    """
     content = tool_input["content"]
     if len(content) == 0:
         return "You need to provide content to store in the archive."
@@ -885,11 +1499,51 @@ def get_tool_result_store_in_archive(tool_input, _state):
 
 
 def render_notebook(notebook: list[str]) -> str:
+    """
+    Render a notebook as a single string.
+
+    This function takes a list of strings representing notebook pages and combines them
+    into a single string, with each page separated by double newlines. It also removes
+    any instances of three or more consecutive newlines, replacing them with double newlines.
+
+    Args:
+        notebook (list[str]): A list of strings, each representing a page in the notebook.
+
+    Returns:
+        str: A single string containing all notebook pages, properly formatted.
+    """
     rendered_notebook = "\n\n".join(notebook)
     rendered_notebook = re.sub(r'\n{3,}', '\n\n', rendered_notebook)
     return rendered_notebook
 
-def get_tool_result_notebook(tool_input, state):
+def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
+    """
+    Process a notebook command and update the notebook state accordingly.
+
+    This function handles various notebook operations such as starting a new notebook,
+    adding pages, reviewing pages, updating pages, and sharing the notebook.
+
+    Args:
+        tool_input (dict): A dictionary containing the command and optional content.
+        state (dict): The current state of the notebook.
+
+    Returns:
+        str: A message indicating the result of the operation.
+
+    Commands:
+        - start_new: Initializes a new empty notebook.
+        - add_page: Adds a new page to the notebook.
+        - start_review: Begins a review of the notebook from the first page.
+        - next_page: Moves to the next page during review.
+        - update_page: Updates the content of the current page.
+        - share_notebook: Shares the entire notebook content.
+        - save_notebook_file: Saves the notebook to a file.
+        - info: Provides information about the notebook and current page.
+
+    Note:
+        This function modifies the 'state' dictionary to keep track of the notebook's
+        current state, including the current page and total number of pages.
+    """
     command = tool_input["command"]
     print(f"Command: {command}")
     content = tool_input.get("content", "")
@@ -964,7 +1618,26 @@ def get_tool_result_notebook(tool_input, state):
             return "Invalid command."
 
 
-def get_tool_result_generate_image(tool_input, state):
+def get_tool_result_generate_image(tool_input: dict, state: dict) -> str:
+    """
+    Generate an image based on a given prompt using Amazon Bedrock's image generation model.
+
+    This function takes a text prompt, prepares the request body for the image generation API,
+    invokes the model, and processes the response. If successful, it stores the generated image
+    in the image catalog and adds it to the output state for display.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'prompt' key with the text description for image generation.
+        state (dict): The current state of the chat interface, used for storing output.
+
+    Returns:
+        str: A message describing the generated image, including its ID and description.
+             If an error occurs, it returns an error message instead.
+
+    Note:
+        This function uses global variables for model configuration and client access.
+        It also relies on external functions for image storage and output handling.
+    """
     prompt = tool_input["prompt"]
     print(f"Prompt: {prompt}")
 
@@ -1010,8 +1683,29 @@ def get_tool_result_generate_image(tool_input, state):
     return f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\n\nThe image has been shown to the user.\nDon't mention the 'image_id' in your response."
 
 
-def get_tool_result_search_image_catalog(tool_input, state):
-    description = tool_input.get("description", None)
+def get_tool_result_search_image_catalog(tool_input: dict, state: dict) -> str:
+    """
+    Search for images in the image catalog based on a text description.
+
+    This function retrieves images from the catalog that match a given description,
+    adds them to the output state for display, and prepares a summary of the results.
+
+    Args:
+        tool_input (dict): A dictionary containing:
+            - description (str): The text description to search for.
+            - max_results (int, optional): Maximum number of results to return.
+              Defaults to MAX_IMAGE_SEARCH_RESULTS.
+        state (dict): The current state of the chat interface, used for storing output.
+
+    Returns:
+        str: A summary of the search results, including descriptions of found images.
+             If no images are found, returns a message indicating so.
+
+    Note:
+        This function modifies the 'state' dictionary by adding found images to the output.
+        It uses external functions get_images_by_description and add_as_output.
+    """
+    description = tool_input.get("description")
     max_results = tool_input.get("max_results", MAX_IMAGE_SEARCH_RESULTS)
     print(f"Description: {description}")
     print(f"Max results: {max_results}")
@@ -1028,8 +1722,30 @@ def get_tool_result_search_image_catalog(tool_input, state):
     return result
 
 
-def get_tool_result_similarity_image_catalog(tool_input, state):
-    image_id = tool_input.get("image_id", None)
+def get_tool_result_similarity_image_catalog(tool_input: dict, state: dict) -> str:
+    """
+    Search for similar images in the image catalog based on a reference image.
+
+    This function retrieves images from the catalog that are similar to a given reference image,
+    adds them to the output state for display, and prepares a summary of the results.
+
+    Args:
+        tool_input (dict): A dictionary containing:
+            - image_id (str): The ID of the reference image to search for similar images.
+            - max_results (int, optional): Maximum number of results to return.
+              Defaults to MAX_IMAGE_SEARCH_RESULTS.
+        state (dict): The current state of the chat interface, used for storing output.
+
+    Returns:
+        str: A summary of the search results, including descriptions of found images.
+             If no similar images are found, returns a message indicating so.
+             If an error occurs, returns an error message.
+
+    Note:
+        This function modifies the 'state' dictionary by adding found images to the output.
+        It uses external functions get_images_by_similarity and add_as_output.
+    """
+    image_id = tool_input.get("image_id")
     max_results = tool_input.get("max_results", MAX_IMAGE_SEARCH_RESULTS)
     print(f"Image ID: {image_id}")
     print(f"Max results: {max_results}")
@@ -1047,8 +1763,27 @@ def get_tool_result_similarity_image_catalog(tool_input, state):
     return result
 
 
-def get_tool_result_random_images(tool_input, state):
-    num = tool_input.get("num", None)
+def get_tool_result_random_images(tool_input: dict, state: dict) -> str:
+    """
+    Retrieve random images from the image catalog and add them to the output state.
+
+    This function fetches a specified number of random images from the image catalog,
+    adds them to the output state for display, and prepares a summary of the results.
+
+    Args:
+        tool_input (dict): A dictionary containing:
+            - num (int): The number of random images to retrieve.
+        state (dict): The current state of the chat interface, used for storing output.
+
+    Returns:
+        str: A summary of the random images retrieved, including descriptions of each image.
+             If no images are returned or an error occurs, returns an appropriate message.
+
+    Note:
+        This function modifies the 'state' dictionary by adding retrieved images to the output.
+        It uses external functions get_random_images and add_as_output.
+    """
+    num = tool_input.get("num")
     print(f"Num: {num}")
     random_images = get_random_images(num)
     if type(random_images) is not list:
@@ -1063,7 +1798,21 @@ def get_tool_result_random_images(tool_input, state):
     return result
 
 
-def get_tool_result_image_catalog_count(_tool_input, _state):
+def get_tool_result_image_catalog_count(_tool_input: dict, _state: dict) -> int | str:
+    """
+    Count the number of documents in the image catalog.
+
+    This function queries the OpenSearch index to get the total count of images
+    in the multimodal index.
+
+    Returns:
+        int: The number of images in the catalog.
+        str: An error message if an exception occurs during the count operation.
+
+    Note:
+        This function uses the global opensearch_client to interact with OpenSearch.
+        It assumes that MULTIMODAL_INDEX_NAME is defined as a global constant.
+    """
     try:
         info = opensearch_client.count(index=MULTIMODAL_INDEX_NAME)
         print(f"Image catalog info: {info}")
@@ -1075,12 +1824,38 @@ def get_tool_result_image_catalog_count(_tool_input, _state):
         return error_message
 
 
-def get_tool_result_download_image_into_catalog(tool_input, state):
+def get_tool_result_download_image_into_catalog(tool_input: dict, state: dict) -> str:
+    """
+    Download an image from a given URL and add it to the image catalog.
+
+    This function retrieves an image from a specified URL, processes it, and stores
+    it in the image catalog. It performs the following steps:
+    1. Validates the URL and checks the image format.
+    2. Downloads the image and converts it to base64.
+    3. Stores the image in the catalog using the store_image function.
+    4. Adds the image to the output state for display.
+
+    Args:
+        tool_input (dict): A dictionary containing the 'url' key with the image URL.
+        state (dict): The current state of the chat interface, used for storing output.
+
+    Returns:
+        str: A message describing the result of the operation, including the image ID
+             and description if successful, or an error message if the operation fails.
+
+    Raises:
+        Various exceptions may be raised and caught within the function, resulting
+        in error messages being returned instead of the function terminating.
+
+    Note:
+        This function uses several global variables and external functions for
+        image processing and storage.
+    """
     url = tool_input.get("url")
     print(f"URL: {url}")
     if url is None:
         return "You need to provide a URL."
-    
+
     # Get the image format from the content type, do an http HEAD to the url using urllib
     req = urllib.request.Request(url, method="HEAD")
     try:
@@ -1091,7 +1866,7 @@ def get_tool_result_download_image_into_catalog(tool_input, state):
         error_message = f"Error downloading image: {ex}"
         print(error_message)
         return error_message
-    
+
     if status >= 400:
         error_message = f"Error downloading image. Status code: {status}"
         print(error_message)
@@ -1115,7 +1890,7 @@ def get_tool_result_download_image_into_catalog(tool_input, state):
         error_message = f"Error downloading image: {ex}"
         print(error_message)
         return error_message
-    
+
     # Convert image bytes to base64
     image = store_image(format, image_base64)
     add_as_output(image, state)
@@ -1123,7 +1898,47 @@ def get_tool_result_download_image_into_catalog(tool_input, state):
     return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}"
 
 
+def get_tool_result_personal_improvement(tool_input: dict, state: dict) -> str:
+    """
+    Handle personal improvement commands and update the improvement state.
+
+    This function processes commands related to personal improvements, including
+    showing current improvements and updating them.
+
+    Args:
+        tool_input (dict): A dictionary containing command information:
+            - command (str): The action to perform ('show_improvements' or 'update_improvements').
+            - improvements (str, optional): New improvements to be stored, replacing the current ones.
+        state (dict): The current state of the chat interface, containing the improvements.
+
+    Returns:
+        str: A message indicating the result of the operation.
+
+    Note:
+        The function initializes the 'improvements' key in the state if it doesn't exist.
+    """
+    command = tool_input.get("command")
+    improvements = tool_input.get("improvements")
+    print(f"Command: {command}")
+    print(f"Improvements: {improvements}")
+    match command:
+        case 'show_improvements':
+            return f"These are the current improvements:\n{state['improvements']}"
+        case 'update_improvements':
+            state['improvements']= improvements
+            return"Improvement updated."
+        case _:
+            return "Invalid command."
+
+
 class ToolError(Exception):
+    """
+    Custom exception class for tool-related errors.
+
+    This exception is raised when there's an issue with tool execution or usage
+    in the chat system. It can be used to handle specific errors related to
+    tools and provide meaningful error messages to the user or the system.
+    """
     pass
 
 
@@ -1145,10 +1960,27 @@ TOOL_FUNCTIONS = {
     'random_images': get_tool_result_random_images,
     'image_catalog_count': get_tool_result_image_catalog_count,
     'download_image_into_catalog': get_tool_result_download_image_into_catalog,
+    'personal_improvement': get_tool_result_personal_improvement,
 }
 
 
-def check_tools_consistency():
+def check_tools_consistency() -> None:
+    """
+    Check the consistency between defined tools and their corresponding functions.
+
+    This function compares the set of tool names defined in the TOOLS global variable
+    with the set of function names in the TOOL_FUNCTIONS dictionary. It ensures that
+    there is a one-to-one correspondence between the defined tools and their
+    implementation functions.
+
+    Raises:
+        Exception: If there is a mismatch between the tools defined in TOOLS
+                   and the functions defined in TOOL_FUNCTIONS.
+
+    Note:
+        This function assumes that TOOLS and TOOL_FUNCTIONS are global variables
+        defined elsewhere in the code.
+    """
     tools_set = set([ t['toolSpec']['name'] for t in TOOLS])
     tool_functions_set = set(TOOL_FUNCTIONS.keys())
 
@@ -1156,31 +1988,69 @@ def check_tools_consistency():
         raise Exception(f"Tools and tool functions are not consistent: {tools_set} != {tool_functions_set}")
 
 
-def get_tool_result(tool_use_block, state):
+def get_tool_result(tool_use_block: dict, state: dict) -> str:
+    """
+    Execute a tool and return its result.
+
+    This function takes a tool use block and the current state, executes the
+    specified tool, and returns the result. It handles tool execution errors
+    by raising a ToolError.
+
+    Args:
+        tool_use_block (dict): A dictionary containing the tool use information,
+                               including the tool name and input.
+        state (dict): The current state of the application.
+
+    Returns:
+        The result of the tool execution.
+
+    Raises:
+        ToolError: If an invalid tool name is provided.
+    """
     global opensearch_client
 
     tool_use_name = tool_use_block['name']
-            
+
     print(f"Using tool {tool_use_name}")
-    
+
     try:
         return TOOL_FUNCTIONS[tool_use_name](tool_use_block['input'], state)
     except KeyError:
         raise ToolError(f"Invalid function name: {tool_use_name}")
 
 
-def handle_response(response_message, state):
-    
+def handle_response(response_message: dict, state: dict) -> dict|None:
+    """
+    Handle the response from the AI model and process any tool use requests.
+
+    This function takes the response message from the AI model and the current state,
+    processes any tool use requests within the response, and generates follow-up
+    content blocks with tool results or error messages.
+
+    Args:
+        response_message (dict): The response message from the AI model containing
+                                 content blocks and potential tool use requests.
+        state (dict): The current state of the application.
+
+    Returns:
+        dict or None: A follow-up message containing tool results if any tools were used,
+                      or None if no tools were used.
+
+    Note:
+        This function handles tool execution errors by catching ToolError exceptions
+        and including error messages in the follow-up content blocks.
+    """
+
     response_content_blocks = response_message['content']
     follow_up_content_blocks = []
-    
+
     for content_block in response_content_blocks:
         if 'toolUse' in content_block:
             tool_use_block = content_block['toolUse']
-            
+
             try:
                 tool_result_value = get_tool_result(tool_use_block, state)
-                
+
                 if tool_result_value is not None:
                     follow_up_content_blocks.append({
                         "toolResult": {
@@ -1190,34 +2060,76 @@ def handle_response(response_message, state):
                             ]
                         }
                     })
-                
+
             except ToolError as e:
-                follow_up_content_blocks.append({ 
+                follow_up_content_blocks.append({
                     "toolResult": {
                         "toolUseId": tool_use_block['toolUseId'],
                         "content": [ { "text": repr(e) } ],
                         "status": "error"
                     }
                 })
-    
+
     if len(follow_up_content_blocks) > 0:
         follow_up_message = {
             "role": "user",
             "content": follow_up_content_blocks,
-        }        
+        }
         return follow_up_message
     else:
         return None
 
 
-def get_file_name_and_extension(full_file_name: str):
+def get_file_name_and_extension(full_file_name: str) -> tuple[str, str]:
+    """
+    Extract the file name and extension from a full file path.
+
+    This function takes a full file path and returns the file name without the extension
+    and the extension separately. The extension is returned in lowercase without the leading dot.
+
+    Args:
+        full_file_name (str): The full path of the file including the file name and extension.
+
+    Returns:
+        tuple: A tuple containing two elements:
+            - file_name (str): The name of the file without the extension.
+            - extension (str): The file extension in lowercase without the leading dot.
+                               If there's no extension, an empty string is returned.
+
+    Example:
+        >>> get_file_name_and_extension('/path/to/myfile.txt')
+        ('myfile', 'txt')
+        >>> get_file_name_and_extension('document.PDF')
+        ('document', 'pdf')
+        >>> get_file_name_and_extension('image')
+        ('image', '')
+    """
     file_name, extension = os.path.splitext(os.path.basename(full_file_name))
     if len(extension) > 0:
         extension = extension[1:].lower() # Remove the leading '.' and make it lowercase
     return file_name, extension
 
 
-def format_messages_for_bedrock_converse(message, history, state):
+def format_messages_for_bedrock_converse(message: dict, history: list[dict], state: dict) -> list[dict]:
+    """
+    Format messages for the Bedrock converse API.
+
+    This function takes a message, conversation history, and state, and formats them
+    into a structure suitable for the Bedrock Converse API. It processes text and file
+    contents, handles different message types, and prepares image and document data.
+
+    Args:
+        message (dict): The latest user message.
+        history (list): A list of previous messages in the conversation.
+        state (dict): The current state of the application.
+
+    Returns:
+        list: A list of formatted messages ready for the Bedrock converse API.
+
+    Note:
+        This function handles various types of content including text, images, and documents.
+        It also processes file uploads and stores images in the catalog when necessary.
+    """
 
     # Temporarily add the latest user message for convinience
     history.append({"role": "user", "content": message})
@@ -1339,35 +2251,63 @@ def format_messages_for_bedrock_converse(message, history, state):
     return messages
 
 
-def run_loop(messages, system_prompt, temperature, state):
+def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict) -> str:
+    """
+    Run a conversation loop with the AI model, processing responses and handling tool usage.
+
+    This function manages the conversation flow between the user and the AI model. It sends messages
+    to the model, processes the responses, handles any tool usage requests, and continues the
+    conversation until a final response is ready or the maximum number of loops is reached.
+
+    Args:
+        messages (list): A list of message dictionaries representing the conversation history.
+        system_prompt (str): The system prompt to guide the AI model's behavior.
+        temperature (float): The temperature parameter for the AI model's response generation.
+        state (dict): The current state of the chat interface.
+
+    Returns:
+        str: The final response from the AI model, with XML tags removed.
+
+    Note:
+        This function uses global variables MAX_LOOPS and TOOLS, and relies on external functions
+        invoke_text_model, handle_response, and remove_xml_tags.
+    """
     loop_count = 0
     continue_loop = True
-    
+
     new_messages = []
+
+    # Add current date and time to the system prompt
+    current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
+    current_time = datetime.now().strftime("%I:%M:%S %p")
+    system_prompt_with_improvements = system_prompt + f"\nKeep in mind that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
+
+    if len(state['improvements']) > 0:
+        system_prompt_with_improvements += "\n\nImprovements:\n" + state['improvements']
 
     while continue_loop:
 
-        response = invoke_text_model(messages, system_prompt, temperature, tools=TOOLS)
-        
+        response = invoke_text_model(messages, system_prompt_with_improvements, temperature, tools=TOOLS)
+
         response_message = response['output']['message']
         messages.append(response_message)
         new_messages.append(response_message)
-        
+
         loop_count = loop_count + 1
-        
+
         if loop_count >= MAX_LOOPS:
             print(f"Hit loop limit: {loop_count}")
-            continue_loop = False 
-        
+            continue_loop = False
+
         follow_up_message = handle_response(response_message, state)
-        
+
         if follow_up_message is None:
             # No remaining work to do, return final response to user
-            continue_loop = False 
+            continue_loop = False
         else:
             messages.append(follow_up_message)
             new_messages.append(follow_up_message)
-    
+
     assistant_responses = []
     for m in new_messages:
         if m['role'] == 'assistant' and 'content' in m:
@@ -1393,12 +2333,32 @@ def run_loop(messages, system_prompt, temperature, state):
     return remove_xml_tags("\n".join(assistant_responses))
 
 
-def chat_function(message, history, system_prompt, temperature, state):
+def chat_function(message: dict, history: list[dict], system_prompt: str, temperature: float, state: dict) -> str:
+    """
+    Process a chat message and generate a response using an AI model.
 
+    This function handles the main chat interaction, including processing the input message,
+    formatting the conversation history, running the AI model loop, and generating a response.
+    It also handles displaying additional content like images or text in the chat interface.
+
+    Args:
+        message (dict): The current message from the user.
+        history (list): A list of previous messages in the conversation.
+        system_prompt (str): The system prompt to guide the AI model's behavior.
+        temperature (float): The temperature parameter for the AI model's response generation.
+        state (dict): The current state of the chat interface.
+
+    Yields:
+        str: The generated response from the AI model, including any additional content.
+
+    Note:
+        This function modifies the 'state' dictionary to store output for display in the chat interface.
+        It handles both text and file inputs, and can display generated images in the response.
+    """
     if message['text'] != '':
         state['output'] = []
         messages = format_messages_for_bedrock_converse(message, history, state)
-        response = run_loop(messages, system_prompt, temperature, state)
+        response = manage_conversation_flow(messages, system_prompt, temperature, state)
         print(f"Response length: {len(response)}")
 
         if len(state['output']) > 0:
@@ -1421,7 +2381,30 @@ def chat_function(message, history, system_prompt, temperature, state):
         yield "Please enter a message."
 
 
-def import_images():
+def import_images(image_path: str) -> None:
+    """
+    Import images from the image_path directory and store them in the image catalog.
+
+    This function scans the image_path directory for image files, processes each valid image,
+    and stores it in the image catalog using the store_image function. It utilizes multithreading
+    to improve performance when processing multiple images.
+
+    The function creates the image_path directory if it doesn't exist, processes only files with
+    extensions listed in IMAGE_FORMATS, and uses a ThreadPoolExecutor to parallelize the import process.
+
+    Global variables:
+    - opensearch_client: The OpenSearch client used for storing image metadata.
+    - IMAGE_FORMATS: A list of valid image file extensions.
+    - MAX_WORKERS: The maximum number of worker threads for parallel processing.
+
+    Returns:
+    None
+
+    Side effects:
+    - Creates the image_path directory if it doesn't exist.
+    - Stores imported images in the image catalog.
+    - Prints progress information to the console.
+    """
     global opensearch_client
 
     print("Importing images...")
@@ -1430,17 +2413,17 @@ def import_images():
         print(f"Found: {file}")
         file_name, extension = get_file_name_and_extension(file)
         if extension in IMAGE_FORMATS:
-            image_base64 = get_image_base64(IMAGE_PATH + file)
+            image_base64 = get_image_base64(image_path + file)
             image = store_image(extension, image_base64, file_name)
             return image
 
     imported_images = []
 
     # Create IMAGES_PATH if not exists
-    os.makedirs(os.path.dirname(IMAGE_PATH), exist_ok=True) 
+    os.makedirs(os.path.dirname(image_path), exist_ok=True)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [executor.submit(import_image, file) for file in os.listdir(IMAGE_PATH)]
+        futures = [executor.submit(import_image, file) for file in os.listdir(image_path)]
 
         for future in concurrent.futures.as_completed(futures):
             image = future.result()
@@ -1450,7 +2433,23 @@ def import_images():
     print(f"Total images imported: {len(imported_images)}")
 
 
-def invoke_lambda_function(function_name, event):
+def invoke_lambda_function(function_name: str, event: dict) -> dict:
+    """
+    Invoke an AWS Lambda function and return its output.
+
+    This function invokes a specified AWS Lambda function with the given event data,
+    retrieves the response, and returns the decoded output.
+
+    Args:
+        function_name (str): The name or ARN of the Lambda function to invoke.
+        event (dict): The event data to pass to the Lambda function.
+
+    Returns:
+        dict: The decoded output from the Lambda function.
+
+    Note:
+        This function uses the global lambda_client to make the API call.
+    """
     global lambda_client
 
     response = lambda_client.invoke(
@@ -1465,7 +2464,26 @@ def invoke_lambda_function(function_name, event):
     return output
 
 
-def main(args):
+def main(args: argparse.Namespace):
+    """
+    Main function to set up and run the chatbot application.
+
+    This function performs the following tasks:
+    1. Checks consistency of defined tools.
+    2. Initializes the OpenSearch client.
+    3. Handles index reset if requested.
+    4. Creates necessary indexes.
+    5. Imports images into the catalog.
+    6. Sets up the Gradio chat interface with custom components.
+    7. Launches the chat interface.
+
+    Args:
+        args (Namespace): Command-line arguments parsed by argparse.
+
+    Note:
+        This function uses several global variables and external functions
+        for index management, image importing, and interface setup.
+    """
     global opensearch_client
 
     check_tools_consistency()
@@ -1480,14 +2498,15 @@ def main(args):
     create_index(opensearch_client, TEXT_INDEX_NAME, TEXT_INDEX_CONFIG)
     create_index(opensearch_client, MULTIMODAL_INDEX_NAME, MULTIMODAL_INDEX_CONFIG)
 
-    import_images()
+    import_images(IMAGE_PATH)
 
     print("Starting the chatbot...")
 
-    state = gr.State({ "notebook": [], "notebook_current_page": 0, "output": [] })
+    state = gr.State({ "notebook": [], "notebook_current_page": 0, "output": [], "improvements": "" })
 
     # To enable the copy button
     custom_chatbot = gr.Chatbot(
+        elem_id="chatbot",
         type="messages",
         label="Yet Another Chatbot",
         show_copy_button=True,
@@ -1504,7 +2523,15 @@ def main(args):
         [{"text": example, "files": []}] for example in EXAMPLES
     ]
 
+    CSS = """
+    .contain { display: flex; flex-direction: column; }
+    .gradio-container { height: 100vh !important; }
+    #component-0 { height: 100%; }
+    #chatbot { flex-grow: 1; overflow: auto;}
+    """
+
     chat_interface = gr.ChatInterface(
+        css=CSS,
         fn=chat_function,
         type="messages",
         title="Yet Another Chatbot",
@@ -1519,6 +2546,7 @@ def main(args):
             gr.Slider(0, 1, value=DEFAULT_TEMPERATURE, label="Temperature"),
             state,
         ],
+        fill_height=True,
     )
 
 
@@ -1526,7 +2554,18 @@ def main(args):
     chat_interface.launch(allowed_paths=[abs_image_path])
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parse command-line arguments for the chatbot application.
+
+    This function sets up an argument parser to handle command-line options
+    for the chatbot. It currently supports one optional flag:
+    --reset-index: When set, this flag indicates that the text and multimodal
+                   indexes should be reset. Note that image files are not deleted.
+
+    Returns:
+        argparse.Namespace: An object containing the parsed arguments.
+    """
     parser = argparse.ArgumentParser(description='Process input parameters.')
     parser.add_argument('--reset-index', action='store_true', help='Reset text and multimodal indexes. Image files are not deleted.')
     return parser.parse_args()
