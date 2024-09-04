@@ -131,6 +131,55 @@ In this demo:
 
 [![Multimodal Chat Demo 1 – Browse the internet and use the semantic archive](https://img.youtube.com/vi/4ZzYwmltEk4/0.jpg)](https://www.youtube.com/watch?v=4ZzYwmltEk4)
 
+### Import and search Images
+
+In this demo:
+- Using a multimodal index and the local file system to manage an image catalog
+- Store images with a generated description
+- Retrieve images by text description (semantic search)
+- Retrieve images by similarity to another image
+- Retrieve random images
+
+[![Multimodal Chat Demo 2 – Import and search images](https://img.youtube.com/vi/ytQbvXjjQF0/0.jpg)](https://www.youtube.com/watch?v=ytQbvXjjQF0)
+
+### Generate and search images
+
+In this demo:
+- Generate images from a textual description
+- The text-to-image prompt is generated from chat instructions
+- This approach allows to use the overall conversation to improve the prompt
+
+[![Multimodal Chat Demo 3 – Generate and search images](https://img.youtube.com/vi/QfTgaTB1TWE/0.jpg)](https://www.youtube.com/watch?v=QfTgaTB1TWE)
+
+### Python code interpreter
+
+In this demo:
+- Running AI generated code to solve problems
+- Running for security in an AWS Lambda function with basic permissions
+- Deployed via a container image to easily add Python modules
+- Python only but easily extensible
+
+[![Multimodal Chat Demo 4 – Python code interpreter](https://img.youtube.com/vi/WcRMM3ulbTc/0.jpg)](https://www.youtube.com/watch?v=WcRMM3ulbTc)
+
+### Writing on a "notebook"
+
+In this demo:
+- A tool to help write long forms of text such as articles and blog posts)
+- Providing sequential access to text split in pages
+- To mitigate the "asymmetry" between a model input and output sizes
+
+[![Multimodal Chat Demo 5 – Writing on a "notebook"](https://img.youtube.com/vi/BZHdufdMlfI/0.jpg)](https://www.youtube.com/watch?v=BZHdufdMlfI)
+
+### Notebook with a Python code review
+
+In this demo:
+- Best results use more than one tools together
+- Start with a notebook to write a long article
+- The article contains code snippets
+- A review runs and tests all code snippets and updates each page fixing the code (if needed) and adding actual results
+
+[![Multimodal Chat Demo 6 – Notebook with a Python code review](https://img.youtube.com/vi/6nGRFDsk-C4/0.jpg)](https://www.youtube.com/watch?v=6nGRFDsk-C4)
+
 ## Troubleshooting
 
 - If you encounter issues with OpenSearch, check the connection settings and ensure the service is running
