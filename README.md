@@ -89,7 +89,7 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
    ./set_password.sh
    ```
 
-3. Start OpenSearch locally:
+3. Start OpenSearch locally (it needs access to the `.env` file):
    ```
    ./opensearch_start.sh
    ```
@@ -99,6 +99,8 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
 For remote server setup, update the client creation code in the main script.
 
 ## Usage
+
+This section assumes OpenSearch is running locally in another terminal window as described before.
 
 1. Load the OpenSearch admin password into the environment:
    ```

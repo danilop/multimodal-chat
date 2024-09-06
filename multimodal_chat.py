@@ -8,16 +8,16 @@ import io
 import json
 import os
 import re
-import urllib.request
 import time
+import urllib
+import urllib.request
 
 from datetime import datetime
 from html import escape
 from urllib.parse import urlparse
-import urllib
+from typing import Generator
 
 import boto3
-from botocore.config import Config
 
 import gradio as gr
 from gradio.components.chatbot import FileMessage
@@ -40,122 +40,16 @@ from PIL import Image
 import pypandoc
 from pypdf import PdfReader
 
-import numpy as np
+# Import constants from config_loader
+from config_loader import *
 
 # Fix for "Error: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead."
+# No other need to import numpy than for this fix
+import numpy as np
 np.float_ = np.float64
 
 # Fix to avoid the "The current process just got forked..." warning
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-
-IMAGE_PATH = "./Images/"
-OUTPUT_PATH = "./Output/"
-
-OPENSEARCH_HOST = 'localhost'
-OPENSEARCH_PORT = 9200
-
-MULTIMODAL_INDEX_NAME = "multimodal-index"
-TEXT_INDEX_NAME = "text-index"
-MAX_EMBEDDING_IMAGE_SIZE = 5 * 1024 * 1024 # 5MB
-MAX_EMBEDDING_IMAGE_DIMENSIONS = 2048
-MAX_INFERENCE_IMAGE_SIZE = 3.75 * 1024 * 1024 # 3.75MB
-MAX_INFERENCE_IMAGE_DIMENSIONS = 8000
-MAX_CHAT_IMAGE_SIZE = 1024 * 1024 # 1MB
-MAX_CHAT_IMAGE_DIMENSIONS = 2048
-JPEG_SAVE_QUALITY = 90
-
-DEFAULT_IMAGE_WIDTH = 512
-DEFAULT_IMAGE_HEIGHT = 512
-
-AWS_REGION = 'us-east-1'
-#AWS_REGION = 'us-west-2'
-
-AWS_LAMBDA_FUNCTION_NAME = "yet-another-chatbot-function"
-MAX_OUTPUT_LENGTH = 4096 # 4K characters
-
-EMBEDDING_MULTIMODAL_MODEL_ID = 'amazon.titan-embed-image-v1'
-EMBEDDING_TEXT_MODEL_ID = 'amazon.titan-embed-text-v2:0'
-
-IMAGE_GENERATION_MODEL_UD = 'amazon.titan-image-generator-v2:0'
-#IMAGE_GENERATION_MODEL_UD = 'amazon.titan-image-generator-v1'
-
-# True to handle document-to-text translation in code instead of using the Bedrock Converse API Document Chat capability
-HANDLE_DOCUMENT_TO_TEXT_IN_CODE = True
-
-# Using cross-region inference profiles
-MODEL_ID = 'us.anthropic.claude-3-5-sonnet-20240620-v1:0'
-
-#MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0'
-#MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0'
-#MODEL_ID = 'anthropic.claude-3-haiku-20240307-v1:0'
-#MODEL_ID = 'meta.llama3-1-405b-instruct-v1:0'
-#MODEL_ID = 'meta.llama3-1-70b-instruct-v1:0'
-#MODEL_ID = 'meta.llama3-1-8b-instruct-v1:0'
-#MODEL_ID = 'mistral.mistral-large-2407-v1:0' # Mistral Large 2 (24.07)
-
-MIN_RETRY_WAIT_TIME = 5 # seconds
-MAX_RETRY_WAIT_TIME = 40 # seconds
-
-MAX_TOKENS = 4096
-#MAX_TOKENS = 2048 # For some models
-
-MAX_LOOPS = 128
-
-MAX_WORKERS = 10
-
-MIN_CHUNK_LENGTH = 800
-MAX_CHUNK_LENGTH = 900
-
-MAX_SEARCH_RESULTS = 10
-MAX_ARCHIVE_RESULTS = 10
-MAX_IMAGE_SEARCH_RESULTS = 3
-
-DEFAULT_TEMPERATURE = 0.5
-
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant with access to various tools and information sources.
-Follow these guidelines:
-
-1. Prioritize using available tools and information sources over relying on your general knowledge.
-
-2. For internet-based queries:
-   a. Start with a broad search to identify 3 to 5relevant websites and sources.
-   b. Then, use the browser tool to visit specific pages and gather detailed information.
-   c. Synthesize information from multiple sources for a comprehensive answer.
-
-3. Utilize the archive tool to retrieve previously stored information relevant to the query.
-
-4. Use step-by-step thinking to break down complex tasks into smaller, manageable steps.
-
-5. Employ multiple tools when necessary to provide the most accurate and complete answer.
-
-6. Only generate new images if explicitly requested by the user.
-
-7. Do not mention tool names or 'image_id' to the user. Refer to images descriptively.
-
-8. Continuously improve based on user feedback and interaction outcomes.
-
-9. If you're unsure about something, acknowledge it and suggest ways to find the information.
-
-10. Provide sources or references for the information you present when possible.
-
-Remember to adapt your approach based on the specific query and context of the conversation."""
-
-IMAGE_FORMATS = ['png', 'jpeg', 'gif', 'webp']
-DOCUMENT_FORMATS = ['pdf', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'html', 'txt', 'md']
-
-IMAGE_DESCRIPTION_PROMPT = "Describe this image in 50 words or less."
-IMAGE_FILTER_PROMPT = "Remove from this JSON list the images that don't match the description. Only output JSON and nothing else."
-
-TOOLS_TIMEOUT = 300  # Timeout in seconds
-
-opensearch_client = None
-
-# AWS SDK for Python (Boto3) clients
-# bedrock_runtime_config = Config(connect_timeout=300, read_timeout=300, retries={'max_attempts': 4})
-# bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION, config=bedrock_runtime_config)
-bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
-iam_client = boto3.client('iam', region_name=AWS_REGION)
-lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 
 
 def load_json_config(filename: str) -> dict:
@@ -176,6 +70,13 @@ def load_json_config(filename: str) -> dict:
         config = json.load(f)
     return config
 
+
+opensearch_client = None
+
+# AWS SDK for Python (Boto3) clients
+bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
+iam_client = boto3.client('iam', region_name=AWS_REGION)
+lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 
 TOOLS = load_json_config("./Config/tools.json")
 TEXT_INDEX_CONFIG = load_json_config("./Config/text_vector_index.json")
@@ -586,20 +487,18 @@ def mark_down_formatting(html_text: str, url: str) -> str:
     return markdown_text
 
 
-def remove_xml_tags(text: str) -> str:
+def remove_specific_xml_tags(text: str) -> str:
     """
-    Remove specific XML tags and their content, as well as all other XML tags (but not their content) from the input text.
+    Remove specific XML tags and their content from the input text.
 
-    This function performs two main operations:
-    1. Removes specified XML tags ('search_quality_reflection', 'search_quality_score', 'image_quality_score')
-       and their content completely.
-    2. Removes all other XML tags, but keeps their content, excluding comments (starting with "<!").
+    This function removes specified XML tags and their content completely from the input text.
+    It targets specific tags related to quality scores and reflections.
 
     Args:
         text (str): The input text containing XML tags.
 
     Returns:
-        str: The cleaned text with specified XML tags and content removed, and all other XML tags stripped.
+        str: The cleaned text with specified XML tags and their content removed.
 
     Note:
         This function uses regular expressions for tag removal, which may not be suitable for
@@ -607,12 +506,9 @@ def remove_xml_tags(text: str) -> str:
     """
     cleaned_text = text
 
-    # Remove self reflection XML tags and their content
+    # Remove specific XML tags and their content
     for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score']:
         cleaned_text = re.sub(fr'<{tag}>.*?</{tag}>', '', cleaned_text, flags=re.DOTALL)
-
-    # Remove all XML tags (but not their content) excluding comments (starting with "<!")
-    cleaned_text = re.sub(r'<[^!>]+>', '', cleaned_text)
 
     return cleaned_text
 
@@ -887,21 +783,27 @@ def get_image_by_id(image_id: str, return_base64: bool = False) -> dict|str:
     """
     Retrieve image metadata from the multimodal index by its ID.
 
+    This function queries the OpenSearch index to fetch metadata for an image
+    with the specified ID. It can optionally return the image data as a base64-encoded string.
+
     Args:
-        image_id (str): The unique identifier of the image.
-        return_base64 (bool, optional): If True, include the base64-encoded image data in the result. Defaults to False.
+        image_id (str): The unique identifier of the image to retrieve.
+        return_base64 (bool, optional): If True, include the base64-encoded image data
+                                        in the returned dictionary. Defaults to False.
 
     Returns:
-        dict: A dictionary containing the image metadata if found.
-        str: An error message if the image is not found or there's an error.
+        dict: A dictionary containing image metadata if the image is found. The dictionary
+              includes keys such as 'format', 'filename', 'description', and 'id'.
+              If return_base64 is True, it also includes a 'base64' key with the image data.
+        str: An error message if the image is not found or if there's an error during retrieval.
 
     Raises:
-        NotFoundError: If the image is not found in the index.
-        Exception: For any other errors during the retrieval process.
+        NotFoundError: If the image with the given ID is not found in the index.
+        Exception: For any other errors that occur during the retrieval process.
 
     Note:
-        This function uses the global opensearch_client to query the MULTIMODAL_INDEX_NAME.
-        If return_base64 is True, it also reads the image file and includes its base64 encoding.
+        This function uses the global opensearch_client to interact with OpenSearch
+        and assumes that MULTIMODAL_INDEX_NAME is defined as a global constant.
     """
     try:
         response = opensearch_client.get(
@@ -1131,7 +1033,9 @@ def get_tool_result_python(tool_input: dict, state: dict) -> str:
         return warning_message
     if len_output > MAX_OUTPUT_LENGTH:
         output = output[:MAX_OUTPUT_LENGTH] + "\n... (truncated)"
-    print(f"Output:\n---\n{output}\n---\nThe user cannot see the script and its output unless you explicitly tell them.")
+    print(f"Output:\n---\n{output}\n---\nThe user will see the script and its output.")
+    add_as_output({"format": "text", "text": f"Python script:\n```python\n{input_script}\n```\n"}, state)
+    add_as_output({"format": "text", "text": f"Output:\n```\n{output}\n```\n"}, state)
 
     return f"{with_xml_tag(output, 'output')}"
 
@@ -1544,9 +1448,9 @@ def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
         This function modifies the 'state' dictionary to keep track of the notebook's
         current state, including the current page and total number of pages.
     """
-    command = tool_input["command"]
-    print(f"Command: {command}")
+    command = tool_input.get("command")
     content = tool_input.get("content", "")
+    print(f"Command: {command}")
     if len(content) > 0:
         print(f"Content:\n---\n{content}\n---")
 
@@ -1594,7 +1498,9 @@ def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
                 {"format": "text", "text": "This is the content of the notebook:"},
                 state,
             )
+            add_as_output({"format": "text", "text": "<hr>"}, state)
             add_as_output({"format": "text", "text": notebook_output}, state)
+            add_as_output({"format": "text", "text": "<hr>"}, state)
             return f"The notebook ({num_pages} pages) has been shared with the user."
         case "save_notebook_file":
             os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
@@ -2019,6 +1925,40 @@ def get_tool_result(tool_use_block: dict, state: dict) -> str:
         raise ToolError(f"Invalid function name: {tool_use_name}")
 
 
+def process_response_message(response_message: dict, state: dict) -> None:
+    """
+    Process the response message and update the state with the output content.
+
+    Args:
+        response_message (dict): The response message from the AI model.
+        state (dict): The current state of the application.
+    """
+    output_content = []
+    if response_message['role'] == 'assistant' and 'content' in response_message:
+        for c in response_message['content']:
+            if 'text' in c:
+                output_content.append(c['text'])
+            if 'toolUse' in c:
+                hidden_content = "<!--\n" + str(c['toolUse']) + "\n-->"
+                output_content.append(hidden_content)
+    if response_message['role'] == 'user' and 'content' in response_message:
+        for c in response_message['content']:
+            if 'toolResult' in c:
+                tool_result = ''
+                content = c['toolResult']['content'][0]
+                if 'json' in content:
+                    tool_result = json.dumps(content['json'])
+                elif 'text' in content:
+                    tool_result = content['text']
+                if len(tool_result) > 0:
+                    # Hidden to not show up in the chat but still be used by the model
+                    hidden_content = "<!--\n" + tool_result + "\n-->"
+                    output_content.append(hidden_content)
+    for m in output_content:
+        m = remove_specific_xml_tags(m)
+        add_as_output({"format": "text", "text": m}, state)
+
+
 def handle_response(response_message: dict, state: dict) -> dict|None:
     """
     Handle the response from the AI model and process any tool use requests.
@@ -2030,7 +1970,7 @@ def handle_response(response_message: dict, state: dict) -> dict|None:
     Args:
         response_message (dict): The response message from the AI model containing
                                  content blocks and potential tool use requests.
-        state (dict): The current state of the application.
+        state (dict): The current state of the chat interface.
 
     Returns:
         dict or None: A follow-up message containing tool results if any tools were used,
@@ -2168,7 +2108,7 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
             m_text = m_content.get("text", "")
             m_files = m_content.get("files", [])
         if len(m_text) > 0:
-            m_text = remove_xml_tags(m_text) # To remove <img> tags
+            m_text = remove_specific_xml_tags(m_text) # To remove <img> tags
             message_content.append({"text": m_text})
             append_message = True
         for file in m_files:
@@ -2251,7 +2191,7 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
     return messages
 
 
-def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict) -> str:
+def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict) -> None:
     """
     Run a conversation loop with the AI model, processing responses and handling tool usage.
 
@@ -2275,8 +2215,6 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
     loop_count = 0
     continue_loop = True
 
-    new_messages = []
-
     # Add current date and time to the system prompt
     current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
     current_time = datetime.now().strftime("%I:%M:%S %p")
@@ -2291,7 +2229,8 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
 
         response_message = response['output']['message']
         messages.append(response_message)
-        new_messages.append(response_message)
+
+        process_response_message(response_message, state)
 
         loop_count = loop_count + 1
 
@@ -2306,34 +2245,9 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
             continue_loop = False
         else:
             messages.append(follow_up_message)
-            new_messages.append(follow_up_message)
-
-    assistant_responses = []
-    for m in new_messages:
-        if m['role'] == 'assistant' and 'content' in m:
-            for c in m['content']:
-                if 'text' in c:
-                    assistant_responses.append(c['text'])
-                if 'toolUse' in c:
-                    hidden_content = "<!--\n" + json.dumps(c['toolUse']) + "\n-->"
-        if m['role'] == 'user' and 'content' in m:
-            for c in m['content']:
-                if 'toolResult' in c:
-                    tool_result = ''
-                    content = c['toolResult']['content'][0]
-                    if 'json' in content:
-                        tool_result = json.dumps(content['json'])
-                    elif 'text' in content:
-                        tool_result = content['text']
-                    if len(tool_result) > 0:
-                        # Hidden to not show up in the chat but still be used by the model
-                        hidden_content = "<!-- " + tool_result + " -->"
-                        assistant_responses.append(hidden_content)
-
-    return remove_xml_tags("\n".join(assistant_responses))
 
 
-def chat_function(message: dict, history: list[dict], system_prompt: str, temperature: float, state: dict) -> str:
+def chat_function(message: dict, history: list[dict], system_prompt: str, temperature: float, state: dict) -> Generator[str, None, None]:
     """
     Process a chat message and generate a response using an AI model.
 
@@ -2355,30 +2269,26 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
         This function modifies the 'state' dictionary to store output for display in the chat interface.
         It handles both text and file inputs, and can display generated images in the response.
     """
-    if message['text'] != '':
-        state['output'] = []
-        messages = format_messages_for_bedrock_converse(message, history, state)
-        response = manage_conversation_flow(messages, system_prompt, temperature, state)
-        print(f"Response length: {len(response)}")
-
-        if len(state['output']) > 0:
-            for output in state['output']:
-                if output['format'] == 'text':
-                    additional_text = output['text']
-                    print(f"Additional text length: {len(additional_text)}")
-                    response += f"\n{additional_text}"
-                    history.append({"role": "assistant", "content": output['text']})
-                else:
-                    image = output
-                    print(f"Showing image: {image['filename']}")
-                    response += f'<p><img alt="{escape(image["description"])}" src="file={image['filename']}"></p>'
-            print(f"Response length with additional content: {len(response)}")
-
-        print() # Add an additional space
-        yield response
-
-    else:
+    if message['text'] == '':
         yield "Please enter a message."
+
+    state['output'] = []
+    messages = format_messages_for_bedrock_converse(message, history, state)
+    manage_conversation_flow(messages, system_prompt, temperature, state)
+
+    response = ''
+    for output in state['output']:
+        if output['format'] == 'text':
+            additional_text = output['text']
+            response += f"{additional_text}\n"
+            history.append({"role": "assistant", "content": output['text']})
+        else:
+            image = output
+            print(f"Showing image: {image['filename']}")
+            response += f'<p><img alt="{escape(image["description"])}" src="file={image['filename']}"></p>\n'
+
+    print() # Add an additional space
+    yield response
 
 
 def import_images(image_path: str) -> None:
@@ -2549,8 +2459,9 @@ def main(args: argparse.Namespace):
         fill_height=True,
     )
 
-
     abs_image_path = os.path.abspath(IMAGE_PATH)
+    print(f"Allowed paths: {abs_image_path}")
+    
     chat_interface.launch(allowed_paths=[abs_image_path])
 
 
