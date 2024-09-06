@@ -1,363 +1,391 @@
 [
-    {
-        "toolSpec": {
-            "name": "python",
-            "description": "Run a Python script. Use this for all math and date/time computations, to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: numpy, pandas,mpmath, numba, tabulate, matplotlib, yfinance. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "script": {
-                            "type": "string",
-                            "description": "The Python script to run."
-                        }
-                    },
-                    "required": [
-                        "script"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "duckduckgo_text",
-            "description": "Use DuckDuckGo text WWW search engine. Browse the URL links in the response for detailed information.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "string",
-                            "description": "The search terms to look for."
-                        }
-                    },
-                    "required": [
-                        "keywords"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "duckduckgo_news",
-            "description": "DuckDuckGo news search engine. Use this to find what happened recently. Always browse the URL links in the response for more information.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "string",
-                            "description": "The search terms to look for."
-                        }
-                    },
-                    "required": [
-                        "keywords"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "duckduckgo_maps",
-            "description": "DuckDuckGo maps search engine. Use this to search for things near a place. Always browse the URL links in the response for more information.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "string",
-                            "description": "The search terms to look for."
-                        },
-                        "place": {
-                            "type": "string",
-                            "description": "The place where to look for."
-                        }
-                    },
-                    "required": [
-                        "keywords",
-                        "place"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "wikipedia_search",
-            "description": "Search Wikipedia for pages relete to your query. Returns a list of Wikipedia page titles.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "query": {
-                            "type": "string",
-                            "description": "The query to use to look for relevant Wikipedia pages."
-                        }
-                    },
-                    "required": [
-                        "query"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "wikipedia_geodata_search",
-            "description": "Search Wikipedia by location. Use this to search for articles related to a location. Returns a list of Wikipedia page titles.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "latitude": {
-                            "type": "number",
-                            "description": "The latitude for the geo search."
-                        },
-                        "longitude": {
-                            "type": "number",
-                            "description": "The longitude for the geo search."
-                        },
-                        "title": {
-                            "type": "string",
-                            "description": "The title of the Wikipedia page to get."
-                        },
-                        "radius": {
-                            "type": "number",
-                            "description": "Search radius in meters. The value must be between 10 and 10000."
-                        }
-                    },
-                    "required": [
-                        "latitude",
-                        "longitude"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "wikipedia_page",
-            "description": "Get a Wikipedia page by title. The page content is stored in the archive.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "title": {
-                            "type": "string",
-                            "description": "The title of the Wikipedia page to get."
-                        }
-                    },
-                    "required": [
-                        "title"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "browser",
-            "description": "Browse websites on the internet. This the preferred way to browse the internet or check a website if you know the URL. Browse the URL links in the response for more information. To find the right URL path in a website, you can search the web or navigate the website starting from the home page. The web site content is stored in the archive.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "The HTTP(S) URL to browse. Use https://... when possible."
-                        }
-                    },
-                    "required": [
-                        "url"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": { 
-            "name": "retrive_from_archive",
-            "description": "This is your personal archive from which you can retrieve information by keywords. To use this tool correctly, make more than one requests with different keywords (for example, one per URL or per page) instead of a single large request. It can return Markdown or HTML, including links that you can browse with other tools. If you don't find the info you need, you can browse or search the internet or use wikipedia to get more info.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "keywords": {
-                            "type": "string",
-                            "description": "The detailed keywords to retrieve information from the archive."
-                        }
-                    },
-                    "required": [
-                        "keywords"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": { 
-            "name": "store_in_archive",
-            "description": "This is your personal archive. You can use this tool to store text, Markdown, or HTML content that you can later retrieve by keywords.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "content": {
-                            "type": "string",
-                            "description": "The text, Markdown, or HTML content to store in the archive."
-                        }
-                    },
-                    "required": [
-                        "content"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "notebook",
-            "description": "Use this notebook to write, review, and update long text content. Content is stored in pages that you can add, review, and update sequentially, one at a time. When you start a new notebook, the previous one is deleted. You can add a page at the end, ask for info (the number of pages, words, and characters in the notebook), start a review, update the current page. Use this tool to write long forms of text content like articles, blog posts, or book chapters. When you're ok with the content of the notebook, share it with the user. The user cannot see the notebook before you share it. If asked, you can save the notebook in a file.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "How to use the notebook, can be 'start_new', 'add_page', 'info', 'start_review', 'next_page', 'update_page', 'share_notebook', or 'save_notebook_file'."
-                        },
-                        "content": {
-                            "type": "string",
-                            "description": "The content to update the latest read page or to add a new page at the end. Use Markdown to format content. Do not add triple dots (...) between pages. Each page can contain thousands of words."
-                        }
-                    },
-                    "required": [
-                        "command"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "generate_image",
-            "description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Do not use this tool when asked to show, search, or find an image. Generate an image only if the user explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to the user.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "prompt": {
-                            "type": "string",
-                            "description": "The text-to-image prompt to use."
-                        }
-                    },
-                    "required": [
-                        "prompt"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "search_image_catalog",
-            "description": "Find images in the image catalog by description.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "description": {
-                            "type": "string",
-                            "description": "The image description to search for."
-                        },
-                        "max_results": {
-                            "type": "integer",
-                            "description": "The max number of results."
-                        }
-                    },
-                    "required": [
-                        "description"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "similarity_image_catalog",
-            "description": "Search for images similar to a reference image you provide. Use this tool when asked for a similar image. Trust the result of this tool even if the description seems to be not what you expect.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "image_id": {
-                            "type": "string",
-                            "description": "The 'image_id' of the reference image for which you search for similarity."
-                        },
-                        "max_results": {
-                            "type": "integer",
-                            "description": "The max number of results."
-                        }
-                    },
-                    "required": [
-                        "image_id"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "random_images",
-            "description": "Get random images from the image catalog.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "num": {
-                            "type": "string",
-                            "description": "The number of random images to get."
-                        }
-                    },
-                    "required": [
-                        "num"
-                    ]
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "image_catalog_count",
-            "description": "Get the number (count) of images in the image catalog.",
-            "inputSchema": {
-                "json": {
-                    "type": "object"
-                }
-            }
-        }
-    },
-    {
-        "toolSpec": {
-            "name": "download_image_into_catalog",
-            "description": "Use this tool to download images from a URL into the image catalog. You can only download freely available images. You can find the link/URL browsing or searching the internet.",
-            "inputSchema": {
-                "json": {
-                    "type": "object",
-                    "properties": {
-                        "url": {
-                            "type": "string",
-                            "description": "The public URL link to download the image from."
-                        }
-                    },
-                    "required": [
-                        "url"
-                    ]
-                }
-            }
-        }
-    }
+	{
+		"toolSpec": {
+			"name": "python",
+			"description": "Run a Python script. Use this for all math and date/time computations, to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: numpy, pandas,mpmath, numba, tabulate, matplotlib, yfinance. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"script": {
+							"type": "string",
+							"description": "The Python script to run."
+						}
+					},
+					"required": [
+						"script"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "duckduckgo_text",
+			"description": "Use DuckDuckGo text WWW search engine. Browse the URL links in the response for detailed information.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"keywords": {
+							"type": "string",
+							"description": "The search terms to look for."
+						}
+					},
+					"required": [
+						"keywords"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "duckduckgo_news",
+			"description": "DuckDuckGo news search engine. Use this to find what happened recently. Always browse the URL links in the response for more information.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"keywords": {
+							"type": "string",
+							"description": "The search terms to look for."
+						}
+					},
+					"required": [
+						"keywords"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "duckduckgo_maps",
+			"description": "DuckDuckGo maps search engine. Use this to search for things near a place. Always browse the URL links in the response for more information.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"keywords": {
+							"type": "string",
+							"description": "The search terms to look for."
+						},
+						"place": {
+							"type": "string",
+							"description": "The place where to look for."
+						}
+					},
+					"required": [
+						"keywords",
+						"place"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "wikipedia_search",
+			"description": "Search Wikipedia for pages relete to your query. Returns a list of Wikipedia page titles.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "The query to use to look for relevant Wikipedia pages."
+						}
+					},
+					"required": [
+						"query"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "wikipedia_geodata_search",
+			"description": "Search Wikipedia by location. Use this to search for articles related to a location. Returns a list of Wikipedia page titles.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"latitude": {
+							"type": "number",
+							"description": "The latitude for the geo search."
+						},
+						"longitude": {
+							"type": "number",
+							"description": "The longitude for the geo search."
+						},
+						"title": {
+							"type": "string",
+							"description": "The title of the Wikipedia page to get."
+						},
+						"radius": {
+							"type": "number",
+							"description": "Search radius in meters. The value must be between 10 and 10000."
+						}
+					},
+					"required": [
+						"latitude",
+						"longitude"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "wikipedia_page",
+			"description": "Get a Wikipedia page by title. The page content is stored in the archive.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"title": {
+							"type": "string",
+							"description": "The title of the Wikipedia page to get."
+						}
+					},
+					"required": [
+						"title"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "browser",
+			"description": "Browse websites on the internet. This the preferred way to browse the internet or check a website if you know the URL. Browse the URL links in the response for more information. To find the right URL path in a website, you can search the web or navigate the website starting from the home page. The web site content is stored in the archive.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"description": "The HTTP(S) URL to browse. Use https://... when possible."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "retrive_from_archive",
+			"description": "This is your personal archive from which you can retrieve information by keywords. To use this tool correctly, make more than one requests with different keywords (for example, one per URL or per page) instead of a single large request. It can return Markdown or HTML, including links that you can browse with other tools. If you don't find the info you need, you can browse or search the internet or use wikipedia to get more info.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"keywords": {
+							"type": "string",
+							"description": "The detailed keywords to retrieve information from the archive."
+						}
+					},
+					"required": [
+						"keywords"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "store_in_archive",
+			"description": "This is your personal archive. You can use this tool to store text, Markdown, or HTML content that you can later retrieve by keywords.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"content": {
+							"type": "string",
+							"description": "The text, Markdown, or HTML content to store in the archive."
+						}
+					},
+					"required": [
+						"content"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "notebook",
+			"description": "Use this notebook to write, review, and update long text content. Content is stored in pages that you can add, review, and update sequentially, one at a time. When you start a new notebook, the previous one is deleted. You can add a page at the end, ask for info (the number of pages, words, and characters in the notebook), start a review, update the current page. Use this tool to write long forms of text content like articles, blog posts, or book chapters. When you're ok with the content of the notebook, share it with the user. The user cannot see the notebook before you share it. If asked, you can save the notebook in a file.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "How to use the notebook, can be 'start_new', 'add_page', 'info', 'start_review', 'next_page', 'update_page', 'share_notebook', or 'save_notebook_file'."
+						},
+						"content": {
+							"type": "string",
+							"description": "The content to update the latest read page or to add a new page at the end. Use Markdown to format content. Do not add triple dots (...) between pages. Each page can contain thousands of words."
+						}
+					},
+					"required": [
+						"command"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "generate_image",
+			"description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Do not use this tool when asked to show, search, or find an image. Generate an image only if the user explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to the user.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"prompt": {
+							"type": "string",
+							"description": "The text-to-image prompt to use."
+						}
+					},
+					"required": [
+						"prompt"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "search_image_catalog",
+			"description": "Find images in the image catalog by description.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"description": {
+							"type": "string",
+							"description": "The image description to search for."
+						},
+						"max_results": {
+							"type": "integer",
+							"description": "The max number of results."
+						}
+					},
+					"required": [
+						"description"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "similarity_image_catalog",
+			"description": "Search for images similar to a reference image you provide. Use this tool when asked for a similar image. Trust the result of this tool even if the description seems to be not what you expect.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"image_id": {
+							"type": "string",
+							"description": "The 'image_id' of the reference image for which you search for similarity."
+						},
+						"max_results": {
+							"type": "integer",
+							"description": "The max number of results."
+						}
+					},
+					"required": [
+						"image_id"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "random_images",
+			"description": "Get random images from the image catalog.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"num": {
+							"type": "string",
+							"description": "The number of random images to get."
+						}
+					},
+					"required": [
+						"num"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "image_catalog_count",
+			"description": "Get the number (count) of images in the image catalog.",
+			"inputSchema": {
+				"json": {
+					"type": "object"
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "download_image_into_catalog",
+			"description": "Use this tool to download images from a URL into the image catalog. You can only download freely available images. You can find the link/URL browsing or searching the internet.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"url": {
+							"type": "string",
+							"description": "The public URL link to download the image from."
+						}
+					},
+					"required": [
+						"url"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "personal_improvement",
+			"description": "Use this tool to track suggestions and mistake and to find ways to improve for the future. Collect suggestions or find pratical improvements that will be added to your system prompt. Improvements should be generic and not specific to a single question.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "Can be either 'show_improvements' or 'update_improvements'."
+						},
+						"mistake": {
+							"type": "string",
+							"description": "A description of a mistake you just made (optional)."
+						},
+						"improvements": {
+							"type": "string",
+							"description": "A full long paragraph describing all the improvements. These improvements are added to your system prompt to avoid making the same mistakes again. The value of this field replaces all previous improvements."
+						}
+					},
+					"required": [
+						"command"
+					]
+				}
+			}
+		}
+	}
 ]
