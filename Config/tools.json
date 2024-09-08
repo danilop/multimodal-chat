@@ -2,7 +2,7 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: numpy, pandas,mpmath, numba, tabulate, matplotlib, yfinance. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct.",
+			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: numpy, pandas, mpmath, numba, tabulate, matplotlib, yfinance, qrcode. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. Your code should finish within 30 seconds. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -21,7 +21,7 @@
 	},
 	{
 		"toolSpec": {
-			"name": "duckduckgo_text",
+			"name": "duckduckgo_text_search",
 			"description": "Use DuckDuckGo text WWW search engine. Browse the URL links in the response for detailed information.",
 			"inputSchema": {
 				"json": {
@@ -41,7 +41,7 @@
 	},
 	{
 		"toolSpec": {
-			"name": "duckduckgo_news",
+			"name": "duckduckgo_news_search",
 			"description": "DuckDuckGo news search engine. Use this to find what happened recently. Always browse the URL links in the response for more information.",
 			"inputSchema": {
 				"json": {
@@ -61,7 +61,7 @@
 	},
 	{
 		"toolSpec": {
-			"name": "duckduckgo_maps",
+			"name": "duckduckgo_maps_search",
 			"description": "DuckDuckGo maps search engine. Use this to search for things near a place. Always browse the URL links in the response for more information.",
 			"inputSchema": {
 				"json": {
@@ -219,19 +219,19 @@
 	},
 	{
 		"toolSpec": {
-			"name": "notebook",
-			"description": "Use this notebook to write, review, and update long text content. Content is stored in pages that you can add, review, and update sequentially, one at a time. When you start a new notebook, the previous one is deleted. You can add a page at the end, ask for info (the number of pages, words, and characters in the notebook), start a review, update the current page. Use this tool to write long forms of text content like articles, blog posts, or book chapters. When you're ok with the content of the notebook, share it with the user. The user cannot see the notebook before you share it. If asked, you can save the notebook in a file.",
+			"name": "sketchbook",
+			"description": "Use this sketchbook to write, review, and update long text content. Content is stored in pages that you can add, review, and update sequentially, one at a time. When you start a new sketchbook, the previous one is deleted. You can add a page at the end, ask for info (the number of pages, words, and characters in the sketchbook), start a review, update the current page. Use this tool to write long forms of text content like articles, blog posts, or book chapters. When you're ok with the content of the sketchbook, share it with the user. The user cannot see the sketchbook before you share it. If asked, you can save the sketchbook in a file.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the notebook, can be 'start_new', 'add_page', 'info', 'start_review', 'next_page', 'update_page', 'share_notebook', or 'save_notebook_file'."
+							"description": "How to use the sketchbook, can be 'start_new', 'add_page', 'info', 'start_review', 'next_page', 'update_page', 'share_sketchbook', or 'save_sketchbook_file'."
 						},
 						"content": {
 							"type": "string",
-							"description": "The content to update the latest read page or to add a new page at the end. Use Markdown to format content. Do not add triple dots (...) between pages. Each page can contain thousands of words."
+							"description": "The content to update the latest read page or to add a new page at the end. Use Markdown to format content. Do not add triple dots (...) between pages. Each page can contain thousands of words. To include an image in the sketchbook, add a line with the format '[image_id:1234567890]' where 1234567890 is the image_id of an image in the image catalog."
 						}
 					},
 					"required": [

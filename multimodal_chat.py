@@ -462,7 +462,7 @@ def mark_down_formatting(html_text: str, url: str) -> str:
     return markdown_text
 
 
-def remove_specific_xml_tags(text: str) -> tuple[str, dict]:
+def remove_specific_xml_tags(text: str) -> str:
     """
     Remove specific XML tags and their content from the input text and return a dictionary of removed content.
 
@@ -473,26 +473,31 @@ def remove_specific_xml_tags(text: str) -> tuple[str, dict]:
         text (str): The input text containing XML tags.
 
     Returns:
-        tuple: A tuple containing two elements:
-            - str: The cleaned text with specified XML tags and their content removed.
-            - dict: A dictionary where keys are the removed XML tags and values are their content.
+        str: The cleaned text with specified XML tags and their content removed.
 
     Note:
         This function uses regular expressions for tag removal, which may not be suitable for
         processing very large XML documents due to performance considerations.
     """
     cleaned_text = text
-    removed_content = {}
 
     # Remove specific XML tags and their content
-    for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score', 'thinking']:
-        pattern = fr'<{tag}>(.*?)</{tag}>'
-        matches = re.findall(pattern, cleaned_text, flags=re.DOTALL)
-        for match in matches:
-            removed_content[tag] = match.strip()
-        cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
+    for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score']: # , 'thinking']:
+        def remove_tag(tag, pattern, cleaned_text):
+            matches = re.findall(pattern, cleaned_text, flags=re.DOTALL)
+            for match in matches:
+                print(f"Removed {tag}: {match.strip()}")
+            return re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
 
-    return cleaned_text, removed_content
+        # Remove closed tags
+        pattern = fr'<{tag}>(.*?)</{tag}>'
+        cleaned_text = remove_tag(tag, pattern, cleaned_text)
+        
+        # Remove unclosed tags
+        unclosed_pattern = fr'<{tag}>(.*?)$'
+        cleaned_text = remove_tag(tag, unclosed_pattern, cleaned_text)
+
+    return cleaned_text
 
 
 def with_xml_tag(text: str, tag: str) -> str:
@@ -989,7 +994,7 @@ def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Q
 
     Args:
         tool_input (dict): A dictionary containing the 'script' key with the Python code to execute.
-        _state (dict): The current state of the chat interface.
+        _state (dict): The current state of the chat interface (unused in this function).
         output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
@@ -999,6 +1004,7 @@ def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Q
         - The function uses a global variable AWS_LAMBDA_FUNCTION_NAME for the Lambda function name.
         - It adds the script and its output to the chat interface's state for display.
         - The output is truncated if it exceeds MAX_OUTPUT_LENGTH.
+        - If images are generated during script execution, they are stored in the image catalog.
     """
     input_script = tool_input["script"]
     print(f"Script:\n{input_script}")
@@ -1027,13 +1033,18 @@ def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Q
     output_queue.put({"format": "text", "text": f"**Output**\n```\n{output}\n```\n"})
 
     for i in images:
-        image = store_image(i['format'], i['base64'])
+        # Extract the image format from the file extension
+        image_path = i['path']
+        image_format = os.path.splitext(image_path)[1][1:] # Remove the leading dot
+        image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
+        image = store_image(image_format, i['base64'])
         output_queue.put(image)
+        output += f"\nImage {image_path} has been stored in the image catalog with 'image_id': {image['id']}"
 
     return f"{with_xml_tag(output, 'output')}"
 
 
-def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
+def get_tool_result_duckduckgo_text_search(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo text search and store the results in the archive.
 
@@ -1062,8 +1073,8 @@ def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict, _output_queu
 
     current_date = datetime.now().strftime("%Y-%m-%d")
     metadata_key = search_keywords
-    metadata = {"duckduckgo_text": metadata_key, "date": current_date}
-    metadata_delete = {"duckduckgo_text": metadata_key}
+    metadata = {"duckduckgo_text_search": metadata_key, "date": current_date}
+    metadata_delete = {"duckduckgo_text_search": metadata_key}
     archive_item = (
         f"DuckDuckGo Text Search Keywords: {search_keywords}\nResult:\n{output}"
     )
@@ -1075,7 +1086,7 @@ def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict, _output_queu
     )
 
 
-def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
+def get_tool_result_duckduckgo_news_search(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo news search and store the results in the archive.
 
@@ -1103,8 +1114,8 @@ def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict, _output_queu
 
     current_date = datetime.now().strftime("%Y-%m-%d")
     metadata_key = search_keywords
-    metadata = {"duckduckgo_news": metadata_key, "date": current_date}
-    metadata_delete = {"duckduckgo_news": metadata_key}
+    metadata = {"duckduckgo_news_search": metadata_key, "date": current_date}
+    metadata_delete = {"duckduckgo_news_search": metadata_key}
     archive_item = (
         f"DuckDuckGo News Search Keywords: {search_keywords}\nResult:\n{output}"
     )
@@ -1116,7 +1127,7 @@ def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict, _output_queu
     )
 
 
-def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
+def get_tool_result_duckduckgo_maps_search(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo maps search and store the results in the archive.
 
@@ -1148,8 +1159,8 @@ def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict, _output_queu
 
     current_date = datetime.now().strftime("%Y-%m-%d")
     metadata_key = search_keywords + "\n" + search_place
-    metadata = {"duckduckgo_maps": metadata_key, "date": current_date}
-    metadata_delete = {"duckduckgo_maps": metadata_key}
+    metadata = {"duckduckgo_maps_search": metadata_key, "date": current_date}
+    metadata_delete = {"duckduckgo_maps_search": metadata_key}
     archive_item = f"DuckDuckGo Maps Search Keywords: {search_keywords}\nPlace: {search_place}\nResult:\n{output}"
     add_to_text_index(archive_item, metadata_key, metadata, metadata_delete)
 
@@ -1403,51 +1414,73 @@ def get_tool_result_store_in_archive(tool_input: dict, _state: dict, _output_que
     return "The content has been stored in the archive."
 
 
-def render_notebook(notebook: list[str]) -> str:
+def render_sketchbook(sketchbook: list[str]) -> str:
     """
-    Render a notebook as a single string.
+    Render a sketchbook as a single string.
 
-    This function takes a list of strings representing notebook pages and combines them
+    This function takes a list of strings representing sketchbook pages and combines them
     into a single string, with each page separated by double newlines. It also removes
     any instances of three or more consecutive newlines, replacing them with double newlines.
 
     Args:
-        notebook (list[str]): A list of strings, each representing a page in the notebook.
+        sketchbook (list[str]): A list of strings, each representing a page in the sketchbook.
 
     Returns:
-        str: A single string containing all notebook pages, properly formatted.
+        str: A single string containing all sketchbook pages, properly formatted.
     """
-    rendered_notebook = "\n\n".join(notebook)
-    rendered_notebook = re.sub(r'\n{3,}', '\n\n', rendered_notebook)
-    return rendered_notebook
+    def process_image_placeholders(page: str) -> str:
+        """
+        Replace image placeholders with markdown to display the image.
 
-def get_tool_result_notebook(tool_input: dict, state: dict, output_queue: queue.Queue) -> str:
+        Args:
+            page (str): A string representing a page in the sketchbook.
+
+        Returns:
+            str: The page with image placeholders replaced by markdown.
+        """
+        def replace_image(match):
+            image_id = match.group(1)
+            image = get_image_by_id(image_id)
+            if isinstance(image, dict):
+                return f'![{escape(image["description"])}](file={image["filename"]})'
+            else:
+                return f'[Image {image_id} not found]'
+
+        return re.sub(r'\[image_id:(\w+)\]', replace_image, page)
+
+    processed_sketchbook = [process_image_placeholders(page) for page in sketchbook]
+    
+    rendered_sketchbook = "\n\n".join(processed_sketchbook)
+    rendered_sketchbook = "\n" + re.sub(r'\n{3,}', '\n\n', rendered_sketchbook) + "\n"
+    return rendered_sketchbook
+
+def get_tool_result_sketchbook(tool_input: dict, state: dict, output_queue: queue.Queue) -> str:
     """
-    Process a notebook command and update the notebook state accordingly.
+    Process a sketchbook command and update the sketchbook state accordingly.
 
-    This function handles various notebook operations such as starting a new notebook,
-    adding pages, reviewing pages, updating pages, and sharing the notebook.
+    This function handles various sketchbook operations such as starting a new sketchbook,
+    adding pages, reviewing pages, updating pages, and sharing the sketchbook.
 
     Args:
         tool_input (dict): A dictionary containing the command and optional content.
-        state (dict): The current state of the notebook.
+        state (dict): The current state of the sketchbook.
         output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         str: A message indicating the result of the operation.
 
     Commands:
-        - start_new: Initializes a new empty notebook.
-        - add_page: Adds a new page to the notebook.
-        - start_review: Begins a review of the notebook from the first page.
+        - start_new: Initializes a new empty sketchbook.
+        - add_page: Adds a new page to the sketchbook.
+        - start_review: Begins a review of the sketchbook from the first page.
         - next_page: Moves to the next page during review.
         - update_page: Updates the content of the current page.
-        - share_notebook: Shares the entire notebook content.
-        - save_notebook_file: Saves the notebook to a file.
-        - info: Provides information about the notebook and current page.
+        - share_sketchbook: Shares the entire sketchbook content.
+        - save_sketchbook_file: Saves the sketchbook to a file.
+        - info: Provides information about the sketchbook and current page.
 
     Note:
-        This function modifies the 'state' dictionary to keep track of the notebook's
+        This function modifies the 'state' dictionary to keep track of the sketchbook's
         current state, including the current page and total number of pages.
     """
     command = tool_input.get("command")
@@ -1456,67 +1489,67 @@ def get_tool_result_notebook(tool_input: dict, state: dict, output_queue: queue.
     if len(content) > 0:
         print(f"Content:\n---\n{content}\n---")
 
-    num_pages = len(state["notebook"])
+    num_pages = len(state["sketchbook"])
 
     match command:
         case "start_new":
-            state["notebook"] = []
-            state["notebook_current_page"] = 0
-            return "This is a new notebook. There are no pages. Start by adding some content."
+            state["sketchbook"] = []
+            state["sketchbook_current_page"] = 0
+            return "This is a new sketchbook. There are no pages. Start by adding some content."
         case "add_page":
             if len(content) == 0:
                 return "You need to provide content to add a new page."
-            state["notebook"].append(content)
-            num_pages = len(state["notebook"])
-            state["notebook_current_page"] = num_pages - 1
-            return f"New page added at the end. You're now at page {state['notebook_current_page'] + 1} of {num_pages}. You can add more pages, start a review, or share the notebook with the user."
+            state["sketchbook"].append(content)
+            num_pages = len(state["sketchbook"])
+            state["sketchbook_current_page"] = num_pages - 1
+            return f"New page added at the end. You're now at page {state['sketchbook_current_page'] + 1} of {num_pages}. You can add more pages, start a review, or share the sketchbook with the user."
         case "start_review":
             if num_pages == 0:
-                return "The notebook is empty. There are no pages to review. Start by adding some content."
-            state["notebook_current_page"] = 0
-            page_content = state["notebook"][0]
+                return "The sketchbook is empty. There are no pages to review. Start by adding some content."
+            state["sketchbook_current_page"] = 0
+            page_content = state["sketchbook"][0]
             page_content_with_tag = with_xml_tag(page_content, "page")
             return f"You're starting your review at page 1 of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page or move to the next page. The review is completed when you reach the end."
         case "next_page":
-            if state["notebook_current_page"] >= num_pages - 1:
-                return f"You're at the end. You're at page {state['notebook_current_page'] + 1} of {num_pages}. You can start a review or share the notebook with the user."
-            state["notebook_current_page"] += 1
-            page_content = state["notebook"][state["notebook_current_page"]]
+            if state["sketchbook_current_page"] >= num_pages - 1:
+                return f"You're at the end. You're at page {state['sketchbook_current_page'] + 1} of {num_pages}. You can start a review or share the sketchbook with the user."
+            state["sketchbook_current_page"] += 1
+            page_content = state["sketchbook"][state["sketchbook_current_page"]]
             page_content_with_tag = with_xml_tag(page_content, "page")
-            return f"Moving to the next page. You're now at page {state['notebook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page or move to the next page. The review is completed when you reach the end."
+            return f"Moving to the next page. You're now at page {state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page or move to the next page. The review is completed when you reach the end."
         case "update_page":
             if num_pages == 0:
-                return "The notebook is empty. There are no pages. Start by adding some content."
+                return "The sketchbook is empty. There are no pages. Start by adding some content."
             if len(content) == 0:
                 return "You need to provide content to update the current page."
-            state["notebook"][state["notebook_current_page"]] = content
+            state["sketchbook"][state["sketchbook_current_page"]] = content
             return f"The current page has been updated with the new content."
-        case "share_notebook":
+        case "share_sketchbook":
             if num_pages == 0:
-                return "The notebook is empty. There are no pages to share."
-            print("Sharing the notebook...")
-            notebook_output = render_notebook(state["notebook"])
-            output_queue.put({"format": "text", "text": "This is the content of the notebook:"})
+                return "The sketchbook is empty. There are no pages to share."
+            print("Sharing the sketchbook...")
+            sketchbook_output = render_sketchbook(state["sketchbook"])
+            output_queue.put({"format": "text", "text": "This is the content of the sketchbook:"})
             output_queue.put({"format": "text", "text": "<hr>"})
-            output_queue.put({"format": "text", "text": notebook_output})
+            output_queue.put({"format": "text", "text": sketchbook_output})
             output_queue.put({"format": "text", "text": "<hr>"})
-            return f"The notebook ({num_pages} pages) has been shared with the user."
-        case "save_notebook_file":
+            return f"The sketchbook ({num_pages} pages) has been shared with the user."
+        case "save_sketchbook_file":
             os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
             current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-            notebook_filename = f"{OUTPUT_PATH}notebook_{current_datetime}.md"
-            notebook_output = render_notebook(state["notebook"])
-            with open(notebook_filename, "w") as file:
-                file.write(notebook_output)
-            return f"The notebook ({num_pages} pages) has been saved to {notebook_filename}."
+            sketchbook_filename = f"{OUTPUT_PATH}sketchbook_{current_datetime}.md"
+            sketchbook_output = render_sketchbook(state["sketchbook"])
+            with open(sketchbook_filename, "w") as file:
+                file.write(sketchbook_output)
+            return f"The sketchbook ({num_pages} pages) has been saved to {sketchbook_filename}."
         case "info":
-            tmp_output = "\n".join(state["notebook"])
+            tmp_output = "\n".join(state["sketchbook"])
             num_chars = len(tmp_output)
             num_words = len(tmp_output.split())
-            page_content = state["notebook"][state["notebook_current_page"]]
+            page_content = state["sketchbook"][state["sketchbook_current_page"]]
             num_chars_page = len(page_content)
             num_words_page = len(page_content.split())
-            info_message = f"The notebook contains {num_pages} page(s) containing {num_chars} characters or {num_words} words.\nThe current page contains {num_chars_page} characters or {num_words_page} words."
+            info_message = f"The sketchbook contains {num_pages} page(s) containing {num_chars} characters or {num_words} words.\nThe current page contains {num_chars_page} characters or {num_words_page} words."
             print(info_message)
             return info_message
         case _:
@@ -1860,16 +1893,16 @@ class ToolError(Exception):
 
 TOOL_FUNCTIONS = {
     'python': get_tool_result_python,
-    'duckduckgo_text': get_tool_result_duckduckgo_text,
-    'duckduckgo_news': get_tool_result_duckduckgo_news,
-    'duckduckgo_maps': get_tool_result_duckduckgo_maps,
+    'duckduckgo_text_search': get_tool_result_duckduckgo_text_search,
+    'duckduckgo_news_search': get_tool_result_duckduckgo_news_search,
+    'duckduckgo_maps_search': get_tool_result_duckduckgo_maps_search,
     'wikipedia_search': get_tool_result_wikipedia_search,
     'wikipedia_geodata_search': get_tool_result_wikipedia_geodata_search,
     'wikipedia_page': get_tool_result_wikipedia_page,
     'browser': get_tool_result_browser,
     'retrive_from_archive': get_tool_result_retrive_from_archive,
     'store_in_archive': get_tool_result_store_in_archive,
-    'notebook': get_tool_result_notebook,
+    'sketchbook': get_tool_result_sketchbook,
     'generate_image': get_tool_result_generate_image,
     'search_image_catalog': get_tool_result_search_image_catalog,
     'similarity_image_catalog': get_tool_result_similarity_image_catalog,
@@ -1949,7 +1982,7 @@ def process_response_message(response_message: dict, state: dict, output_queue: 
     if response_message['role'] == 'assistant' and 'content' in response_message:
         for c in response_message['content']:
             if 'text' in c:
-                cleaned_text, removed_tags = remove_specific_xml_tags(c['text'])
+                cleaned_text = remove_specific_xml_tags(c['text'])
                 
                 # Remove <img> tags that link to images not in the catalog
                 def remove_invalid_images(match):
@@ -1964,10 +1997,7 @@ def process_response_message(response_message: dict, state: dict, output_queue: 
                 cleaned_text = re.sub(r'<img.*?>', remove_invalid_images, cleaned_text)
                 
                 output_content.append(cleaned_text)
-                if removed_tags:
-                    print(f"Tags removed from output:")
-                    for tag, content in removed_tags.items():
-                        print(f"<{tag}>\n{content}\n</{tag}>\n")
+
     if response_message['role'] == 'user' and 'content' in response_message:
         for c in response_message['content']:
             if 'toolResult' in c:
@@ -2236,7 +2266,7 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
 
     Note:
         This function uses global variables MAX_LOOPS and TOOLS, and relies on external functions
-        invoke_text_model, handle_response, and remove_xml_tags.
+        invoke_text_model and handle_response.
     """
     loop_count = 0
     continue_loop = True
@@ -2273,6 +2303,169 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
             messages.append(follow_up_message)
 
 
+def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, temperature: float, state: dict, output_queue: queue.Queue) -> None:
+    """
+    Run a conversation loop with the AI model using streaming, processing responses and handling tool usage.
+
+    This function manages the conversation flow between the user and the AI model using a streaming approach.
+    It sends messages to the model, processes the responses in real-time, handles any tool usage requests,
+    and continues the conversation until a final response is ready or the maximum number of loops is reached.
+
+    Args:
+        messages (list): A list of message dictionaries representing the conversation history.
+        system_prompt (str): The system prompt to guide the AI model's behavior.
+        temperature (float): The temperature parameter for the AI model's response generation.
+        state (dict): The current state of the chat interface.
+        output_queue (queue.Queue): A queue to put the output into.
+
+    Returns:
+        None
+
+    Note:
+        - This function uses global variables MAX_LOOPS, TOOLS, and bedrock_runtime_client.
+        - It handles streaming responses from the AI model and processes them in chunks.
+        - Tool usage is handled in real-time as the response is being generated.
+    """
+    global bedrock_runtime_client
+
+    loop_count = 0
+    continue_loop = True
+
+    # Add current date and time to the system prompt
+    current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
+    current_time = datetime.now().strftime("%I:%M:%S %p")
+    system_prompt_with_improvements = system_prompt + f"\nKeep in mind that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
+
+    if len(state['improvements']) > 0:
+        system_prompt_with_improvements += "\n\nImprovements:\n" + state['improvements']
+
+    while continue_loop:
+
+        converse_body = {
+            "modelId": MODEL_ID,
+            "messages": messages,
+            "inferenceConfig": {
+                "maxTokens": MAX_TOKENS,
+                "temperature": temperature,
+                },
+        }
+
+        if system_prompt is not None:
+            converse_body["system"] = [{"text": system_prompt}]
+
+        if TOOLS:
+            converse_body["toolConfig"] = {"tools": TOOLS}
+
+        print("Thinking...")
+        
+        streaming_response = bedrock_runtime_client.converse_stream(**converse_body)
+
+        follow_up_content_blocks = []
+        for chunk in streaming_response['stream']:
+            match chunk:
+                case {'messageStart': message_start}:
+                    print(f"MessageStart: {message_start}")
+                    tool_use_block = None
+                    new_content = ''
+                case {'messageStop': message_stop}:
+                    print(f"MessageStop: {message_stop}")
+                case {'metadata': metadata}:
+                    print(f"Metadata: {metadata}")
+                case {'contentBlockStart': content_block_start}:
+                    print(f"ContentBlockStart: {content_block_start}")
+                    match content_block_start['start']:
+                        case {'toolUse': tool_use_start}:
+                            print(f"ToolUse: {tool_use_start}")
+                            tool_use_block = tool_use_start
+                            tool_use_block['input'] = ''
+                        case _:
+                            print(f"Unknown start: {content_block_start['start']}")
+                case {'contentBlockDelta': content_block_delta}:
+                    match content_block_delta['delta']:
+                        case {'text': text}:
+                            new_content += text
+                            output_queue.put({"format": "text", "text": text})
+                        case {'toolUse': tool_use_delta}:
+                            tool_use_block['input'] += tool_use_delta['input']
+                        case _:
+                            print(f"Unknown delta: {chunk}")
+                case {'contentBlockStop': content_block_stop}:
+                    print(f"ContentBlockStop: {content_block_stop}")
+                    new_message = {
+                        "role": "assistant",
+                        "content": [ { "text": new_content } ],
+                    }
+                    if tool_use_block:
+                        print(f"ToolUse: {tool_use_block}")
+
+                        try:
+                            tool_use_block['input'] = json.loads(tool_use_block['input'])
+                            new_message['content'].append( { "toolUse": tool_use_block.copy() } )
+
+                            def format_tool_name(tool_id):
+                                return tool_id.replace('_', ' ').title()
+
+                            tool_use_output = f"\n\nUsing tool: {format_tool_name(tool_use_block['name'])}\n"
+                            for k, v in tool_use_block['input'].items():
+                                if isinstance(v, str) and '\n' not in v:
+                                    tool_use_output += f"\n- {k}: {v}"
+
+                            output_queue.put({"format": "text", "text": tool_use_output})
+
+                            tool_result_value = get_tool_result(tool_use_block, state, output_queue)
+                            print(f"ToolResult: {tool_result_value}")
+
+                            if tool_result_value is not None:
+                                follow_up_content_blocks.append({
+                                    "toolResult": {
+                                        "toolUseId": tool_use_block['toolUseId'],
+                                        "content": [
+                                            { "json": { "result": tool_result_value } }
+                                        ]
+                                    }
+                                })
+
+                        except ToolError as e:
+                            follow_up_content_blocks.append({
+                                "toolResult": {
+                                    "toolUseId": tool_use_block['toolUseId'],
+                                    "content": [ { "text": repr(e) } ],
+                                    "status": "error"
+                                }
+                            })
+                        
+                        finally:
+                            messages.append(new_message)
+                            tool_use_block = None
+
+                case _:
+                    print(f"Unknown chunk: {chunk}")
+
+        loop_count = loop_count + 1
+
+        if loop_count >= MAX_LOOPS:
+            print(f"Hit loop limit: {loop_count}")
+            continue_loop = False
+
+#       follow_up_message = handle_response(response_message, state, output_queue)
+
+        if len(follow_up_content_blocks) > 0:
+            follow_up_message = {
+                "role": "user",
+                "content": follow_up_content_blocks,
+            }
+        else:
+            follow_up_message = None
+
+        if follow_up_message is None:
+            # No remaining work to do, return final response to user
+            continue_loop = False
+        else:
+            messages.append(follow_up_message)
+
+        print(f"Messages: {messages}")
+
+
 def chat_function(message: dict, history: list[dict], system_prompt: str, temperature: float, state: dict) -> Generator[str, None, None]:
     """
     Process a chat message and generate a response using an AI model.
@@ -2300,7 +2493,11 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
     else:
         output_queue = queue.Queue()
         messages = format_messages_for_bedrock_converse(message, history, state, output_queue)
-        thread = threading.Thread(target=manage_conversation_flow, args=(messages, system_prompt, temperature, state, output_queue))
+        if STREAMING:
+            target_function = manage_conversation_flow_stream
+        else:
+            target_function = manage_conversation_flow
+        thread = threading.Thread(target=target_function, args=(messages, system_prompt, temperature, state, output_queue))
         thread.start()
 
         num_dots = 1
@@ -2310,18 +2507,20 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
             try:
                 output = output_queue.get(timeout=0.5)
                 if output['format'] == 'text':
-                    response += f"{output['text']}\n"
+                    response += f"{output['text']}"
+                    if not STREAMING:
+                        response += "\n"
                     history.append({"role": "assistant", "content": output['text']})
                 else:
                     image = output
                     print(f"Showing image: {image['filename']}")
-                    response += f'<p><img alt="{escape(image["description"])}" src="file={image["filename"]}"></p>\n'
-                yield response  # Yield the response as it's being generated
+                    response += f'![{escape(image["description"])}](file={image["filename"]})\n\n'
+                yield remove_specific_xml_tags(response)  # Yield the response as it's being generated
                 output_queue.task_done()
             except queue.Empty:
                 if len(response) > 0:
                     num_dots = (num_dots % tot_dots) + 1
-                    yield f"{response}\n{'.' * num_dots}"
+                    yield f"{remove_specific_xml_tags(response)}\n{'.' * num_dots}"
                 continue  # If the queue is empty, continue the loop
 
         print()
@@ -2451,7 +2650,7 @@ def main(args: argparse.Namespace):
 
     print("Starting the chatbot...")
 
-    state = gr.State({ "notebook": [], "notebook_current_page": 0, "output": [], "improvements": "" })
+    state = gr.State({ "sketchbook": [], "sketchbook_current_page": 0, "output": [], "improvements": "" })
 
     # To enable the copy button
     custom_chatbot = gr.Chatbot(

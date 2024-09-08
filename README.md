@@ -26,7 +26,7 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 
 4. **Content Management**:
    - Personal Archive: Stores and retrieves text, Markdown, or HTML content
-   - Notebook: Manages a multi-page notebook for writing and reviewing long-form content
+   - Sketchbook: Manages a multi-page sketchbook for writing and reviewing long-form content
 
 5. **Image Handling**:
    - Image Generation: Creates images based on text prompts
@@ -165,24 +165,24 @@ In this demo:
 
 [![Multimodal Chat Demo 4 – Python code interpreter](https://img.youtube.com/vi/WcRMM3ulbTc/0.jpg)](https://www.youtube.com/watch?v=WcRMM3ulbTc)
 
-### Writing on a "notebook"
+### Writing on a "sketchbook"
 
 In this demo:
 - A tool to help write long forms of text such as articles and blog posts)
 - Providing sequential access to text split in pages
 - To mitigate the "asymmetry" between a model input and output sizes
 
-[![Multimodal Chat Demo 5 – Writing on a "notebook"](https://img.youtube.com/vi/BZHdufdMlfI/0.jpg)](https://www.youtube.com/watch?v=BZHdufdMlfI)
+[![Multimodal Chat Demo 5 – Writing on a "sketchbook"](https://img.youtube.com/vi/BZHdufdMlfI/0.jpg)](https://www.youtube.com/watch?v=BZHdufdMlfI)
 
-### Notebook with a Python code review
+### Sketchbook with a Python code review
 
 In this demo:
 - Best results use more than one tools together
-- Start with a notebook to write a long article
+- Start with a sketchbook to write a long article
 - The article contains code snippets
 - A review runs and tests all code snippets and updates each page fixing the code (if needed) and adding actual results
 
-[![Multimodal Chat Demo 6 – Notebook with a Python code review](https://img.youtube.com/vi/6nGRFDsk-C4/0.jpg)](https://www.youtube.com/watch?v=6nGRFDsk-C4)
+[![Multimodal Chat Demo 6 – Sketchbook with a Python code review](https://img.youtube.com/vi/6nGRFDsk-C4/0.jpg)](https://www.youtube.com/watch?v=6nGRFDsk-C4)
 
 ## Troubleshooting
 
