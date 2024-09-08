@@ -1,1 +1,0 @@
-024700040865.dkr.ecr.us-west-2.amazonaws.com/yet-another-chatbot:latest

@@ -1,4 +1,7 @@
+import base64
+import json
 import os
+import re
 import subprocess
 
 TMP_DIR = "/tmp"
@@ -41,10 +44,42 @@ def lambda_handler(event, context):
     result = subprocess.run(["python", "-c", input_script], capture_output=True, text=True)
     output = result.stdout + result.stderr
 
+    # Search for "Show image" lines and convert images to base64
+
+    images = []
+
+    output_lines = output.split('\n')
+    for i, line in enumerate(output_lines):
+        match = re.match(r"Show image '(/tmp/.+)'", line)
+        if match:
+            image_path = match.group(1)
+            try:
+                with open(image_path, "rb") as image_file:
+                    image_data = image_file.read()
+                    image_format = os.path.splitext(image_path)[1][1:]  # Get the file extension without the dot
+                    image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
+                    images.append({
+                        "format": image_format,
+                        "base64": base64.b64encode(image_data).decode('utf-8')
+                    })
+            except Exception as e:
+                output_lines[i] = f"Error loading image {image_path}: {str(e)}"
+
+    output = '\n'.join(output_lines)
+
     print(f"Output: {output}")
     print(f"Len: {len(output)}")
+    print(f"Images: {len(images)}")
 
     # After
     remove_tmp_contents()
 
-    return output
+    result = {
+        'output': output,
+        'images': images
+    }
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(result)
+    }

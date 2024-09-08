@@ -7,7 +7,9 @@ import hashlib
 import io
 import json
 import os
+import queue
 import re
+import threading
 import time
 import urllib
 import urllib.request
@@ -82,33 +84,6 @@ TOOLS = load_json_config("./Config/tools.json")
 TEXT_INDEX_CONFIG = load_json_config("./Config/text_vector_index.json")
 MULTIMODAL_INDEX_CONFIG = load_json_config("./Config/multimodal_vector_index.json")
 EXAMPLES = load_json_config('./Config/examples.json')
-
-
-def add_as_output(content:dict|str, state:dict):
-    """
-    Add content to the output state, avoiding duplicate images.
-
-    This function checks if the content is an image (has an 'image_id') and ensures
-    that duplicate images are not added to the output. If the content is not a
-    duplicate image or is not an image at all, it is appended to the output list.
-
-    Args:
-        content (dict): The content to be added to the output. May contain an 'image_id' key.
-        state (dict): The current state containing the 'output' list.
-
-    Returns:
-        None
-
-    Note:
-        If a duplicate image is detected, the function returns early without adding it.
-    """
-    # Avoid to show duplicate images
-    if 'image_id' in content:
-        image = content
-        for item in state['output']:
-            if 'image_id' in item and item['image_id'] == image['image_id']:
-                return
-    state['output'].append(content)
 
 
 def get_opensearch_client() -> OpenSearch:
@@ -487,30 +462,37 @@ def mark_down_formatting(html_text: str, url: str) -> str:
     return markdown_text
 
 
-def remove_specific_xml_tags(text: str) -> str:
+def remove_specific_xml_tags(text: str) -> tuple[str, dict]:
     """
-    Remove specific XML tags and their content from the input text.
+    Remove specific XML tags and their content from the input text and return a dictionary of removed content.
 
-    This function removes specified XML tags and their content completely from the input text.
+    This function removes specified XML tags and their content from the input text.
     It targets specific tags related to quality scores and reflections.
 
     Args:
         text (str): The input text containing XML tags.
 
     Returns:
-        str: The cleaned text with specified XML tags and their content removed.
+        tuple: A tuple containing two elements:
+            - str: The cleaned text with specified XML tags and their content removed.
+            - dict: A dictionary where keys are the removed XML tags and values are their content.
 
     Note:
         This function uses regular expressions for tag removal, which may not be suitable for
         processing very large XML documents due to performance considerations.
     """
     cleaned_text = text
+    removed_content = {}
 
     # Remove specific XML tags and their content
-    for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score']:
-        cleaned_text = re.sub(fr'<{tag}>.*?</{tag}>', '', cleaned_text, flags=re.DOTALL)
+    for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score', 'thinking']:
+        pattern = fr'<{tag}>(.*?)</{tag}>'
+        matches = re.findall(pattern, cleaned_text, flags=re.DOTALL)
+        for match in matches:
+            removed_content[tag] = match.strip()
+        cleaned_text = re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
 
-    return cleaned_text
+    return cleaned_text, removed_content
 
 
 def with_xml_tag(text: str, tag: str) -> str:
@@ -732,6 +714,7 @@ def store_image(image_format: str, image_base64: str, import_image_id:str=''):
         image_format (str): The format of the image (e.g., 'png', 'jpeg').
         image_base64 (str): The base64-encoded string of the image.
         import_image_id (str, optional): An ID to use for importing an existing image. Defaults to ''.
+        output_queue (queue.Queue): A queue to put the image into.
 
     Returns:
         dict: A dictionary containing the image metadata if successful, None if there's an ID mismatch.
@@ -789,7 +772,7 @@ def get_image_by_id(image_id: str, return_base64: bool = False) -> dict|str:
     Args:
         image_id (str): The unique identifier of the image to retrieve.
         return_base64 (bool, optional): If True, include the base64-encoded image data
-                                        in the returned dictionary. Defaults to False.
+                                       in the returned dictionary. Defaults to False.
 
     Returns:
         dict: A dictionary containing image metadata if the image is found. The dictionary
@@ -997,7 +980,7 @@ def get_random_images(num: int) -> list[dict]:
     return images
 
 
-def get_tool_result_python(tool_input: dict, state: dict) -> str:
+def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Execute a Python script using AWS Lambda and process the result.
 
@@ -1006,7 +989,8 @@ def get_tool_result_python(tool_input: dict, state: dict) -> str:
 
     Args:
         tool_input (dict): A dictionary containing the 'script' key with the Python code to execute.
-        state (dict): The current state of the chat interface.
+        _state (dict): The current state of the chat interface.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         str: The output of the Python script execution, wrapped in XML tags.
@@ -1020,12 +1004,17 @@ def get_tool_result_python(tool_input: dict, state: dict) -> str:
     print(f"Script:\n{input_script}")
     start_time = time.time()
     event = {"input_script": input_script}
+
     print("Invoking Lambda function...")
-    output = invoke_lambda_function(AWS_LAMBDA_FUNCTION_NAME, event)
+    result = invoke_lambda_function(AWS_LAMBDA_FUNCTION_NAME, event) 
+    output = result.get("output", "")
+    images = result.get("images", [])
+
     end_time = time.time()
     elapsed_time = end_time - start_time
     len_output = len(output)
-    print(f"Len: {len_output}")
+    print(f"Output length: {len_output}")
+    print(f"Images: {len(images)}")
     print(f"Elapsed time: {elapsed_time:.2f} seconds")
     if len_output == 0:
         warning_message = "No output printed."
@@ -1034,19 +1023,25 @@ def get_tool_result_python(tool_input: dict, state: dict) -> str:
     if len_output > MAX_OUTPUT_LENGTH:
         output = output[:MAX_OUTPUT_LENGTH] + "\n... (truncated)"
     print(f"Output:\n---\n{output}\n---\nThe user will see the script and its output.")
-    add_as_output({"format": "text", "text": f"Python script:\n```python\n{input_script}\n```\n"}, state)
-    add_as_output({"format": "text", "text": f"Output:\n```\n{output}\n```\n"}, state)
+    output_queue.put({"format": "text", "text": f"**Python**\n```python\n{input_script}\n```\n"})
+    output_queue.put({"format": "text", "text": f"**Output**\n```\n{output}\n```\n"})
+
+    for i in images:
+        image = store_image(i['format'], i['base64'])
+        output_queue.put(image)
 
     return f"{with_xml_tag(output, 'output')}"
 
 
-def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict) -> str:
+def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo text search and store the results in the archive.
 
     Args:
         tool_input (dict): A dictionary containing the 'keywords' for the search.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
+
 
     Returns:
         str: XML-tagged output containing the search results and a message about archiving.
@@ -1080,13 +1075,14 @@ def get_tool_result_duckduckgo_text(tool_input: dict, _state: dict) -> str:
     )
 
 
-def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict) -> str:
+def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo news search and store the results in the archive.
 
     Args:
         tool_input (dict): A dictionary containing the 'keywords' for the search.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: XML-tagged output containing the search results and a message about archiving.
@@ -1120,13 +1116,14 @@ def get_tool_result_duckduckgo_news(tool_input: dict, _state: dict) -> str:
     )
 
 
-def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict) -> str:
+def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a DuckDuckGo maps search and store the results in the archive.
 
     Args:
         tool_input (dict): A dictionary containing the 'keywords' and 'place' for the search.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: XML-tagged output containing the search results and a message about archiving.
@@ -1162,13 +1159,14 @@ def get_tool_result_duckduckgo_maps(tool_input: dict, _state: dict) -> str:
     )
 
 
-def get_tool_result_wikipedia_search(tool_input: dict, _state: dict) -> str:
+def get_tool_result_wikipedia_search(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a Wikipedia search and return the results.
 
     Args:
         tool_input (dict): A dictionary containing the 'query' for the search.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: XML-tagged output containing the search results.
@@ -1190,7 +1188,7 @@ def get_tool_result_wikipedia_search(tool_input: dict, _state: dict) -> str:
     return with_xml_tag(output, "output")
 
 
-def get_tool_result_wikipedia_geodata_search(tool_input: dict, _state: dict) -> str:
+def get_tool_result_wikipedia_geodata_search(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Perform a Wikipedia geosearch and return the results.
 
@@ -1201,6 +1199,7 @@ def get_tool_result_wikipedia_geodata_search(tool_input: dict, _state: dict) -> 
             - title (str, optional): The title of a page to search for.
             - radius (int, optional): The search radius in meters.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: XML-tagged output containing the search results as a JSON string.
@@ -1230,7 +1229,7 @@ def get_tool_result_wikipedia_geodata_search(tool_input: dict, _state: dict) -> 
     return with_xml_tag(output, "output")
 
 
-def get_tool_result_wikipedia_page(tool_input: dict, _state: dict) -> str:
+def get_tool_result_wikipedia_page(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Retrieve and process a Wikipedia page, storing its content in the archive.
 
@@ -1240,7 +1239,7 @@ def get_tool_result_wikipedia_page(tool_input: dict, _state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing the 'title' key with the Wikipedia page title.
         _state (dict): The current state of the chat interface (unused in this function).
-
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
     Returns:
         str: A message indicating that the page content has been stored in the archive.
 
@@ -1266,7 +1265,7 @@ def get_tool_result_wikipedia_page(tool_input: dict, _state: dict) -> str:
     return f"The full content of the page has been stored in the archive so that you can retrieve what you need."
 
 
-def get_tool_result_browser(tool_input: dict, _state: dict) -> str:
+def get_tool_result_browser(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Retrieve and process content from a given URL using Selenium.
 
@@ -1277,7 +1276,7 @@ def get_tool_result_browser(tool_input: dict, _state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing the 'url' key with the target URL.
         _state (dict): The current state of the chat interface (unused in this function).
-
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
     Returns:
         str: A message indicating that the content has been stored in the archive.
 
@@ -1329,7 +1328,7 @@ def get_tool_result_browser(tool_input: dict, _state: dict) -> str:
     return f"The full content of the URL ({len(markdown_text)} characters) has been stored in the archive. You can retrieve what you need using keywords."
 
 
-def get_tool_result_retrive_from_archive(tool_input: dict, _state: dict) -> str:
+def get_tool_result_retrive_from_archive(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Retrieve content from the archive based on given keywords.
 
@@ -1339,6 +1338,7 @@ def get_tool_result_retrive_from_archive(tool_input: dict, _state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing the 'keywords' to search for.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: XML-tagged output containing the search results as a JSON string.
@@ -1372,7 +1372,7 @@ def get_tool_result_retrive_from_archive(tool_input: dict, _state: dict) -> str:
     return with_xml_tag(documents, "archive")
 
 
-def get_tool_result_store_in_archive(tool_input: dict, _state: dict) -> str:
+def get_tool_result_store_in_archive(tool_input: dict, _state: dict, _output_queue: queue.Queue) -> str:
     """
     Store content in the archive.
 
@@ -1382,6 +1382,7 @@ def get_tool_result_store_in_archive(tool_input: dict, _state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing the 'content' key with the text to be stored.
         _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: A message indicating whether the content was successfully stored or an error occurred.
@@ -1420,7 +1421,7 @@ def render_notebook(notebook: list[str]) -> str:
     rendered_notebook = re.sub(r'\n{3,}', '\n\n', rendered_notebook)
     return rendered_notebook
 
-def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
+def get_tool_result_notebook(tool_input: dict, state: dict, output_queue: queue.Queue) -> str:
     """
     Process a notebook command and update the notebook state accordingly.
 
@@ -1430,6 +1431,7 @@ def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing the command and optional content.
         state (dict): The current state of the notebook.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         str: A message indicating the result of the operation.
@@ -1494,13 +1496,10 @@ def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
                 return "The notebook is empty. There are no pages to share."
             print("Sharing the notebook...")
             notebook_output = render_notebook(state["notebook"])
-            add_as_output(
-                {"format": "text", "text": "This is the content of the notebook:"},
-                state,
-            )
-            add_as_output({"format": "text", "text": "<hr>"}, state)
-            add_as_output({"format": "text", "text": notebook_output}, state)
-            add_as_output({"format": "text", "text": "<hr>"}, state)
+            output_queue.put({"format": "text", "text": "This is the content of the notebook:"})
+            output_queue.put({"format": "text", "text": "<hr>"})
+            output_queue.put({"format": "text", "text": notebook_output})
+            output_queue.put({"format": "text", "text": "<hr>"})
             return f"The notebook ({num_pages} pages) has been shared with the user."
         case "save_notebook_file":
             os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
@@ -1524,7 +1523,7 @@ def get_tool_result_notebook(tool_input: dict, state: dict) -> str:
             return "Invalid command."
 
 
-def get_tool_result_generate_image(tool_input: dict, state: dict) -> str:
+def get_tool_result_generate_image(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Generate an image based on a given prompt using Amazon Bedrock's image generation model.
 
@@ -1534,7 +1533,8 @@ def get_tool_result_generate_image(tool_input: dict, state: dict) -> str:
 
     Args:
         tool_input (dict): A dictionary containing the 'prompt' key with the text description for image generation.
-        state (dict): The current state of the chat interface, used for storing output.
+        _state (dict): The current state of the chat interface (unused in this function).
+        output_queue (queue.Queue): A queue to put the image into.
 
     Returns:
         str: A message describing the generated image, including its ID and description.
@@ -1584,12 +1584,12 @@ def get_tool_result_generate_image(tool_input: dict, state: dict) -> str:
 
     print(f"Image base64 size: {len(image_base64)}")
     image = store_image(image_format, image_base64)
-    add_as_output(image, state)
+    output_queue.put(image)
 
     return f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\n\nThe image has been shown to the user.\nDon't mention the 'image_id' in your response."
 
 
-def get_tool_result_search_image_catalog(tool_input: dict, state: dict) -> str:
+def get_tool_result_search_image_catalog(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Search for images in the image catalog based on a text description.
 
@@ -1601,7 +1601,8 @@ def get_tool_result_search_image_catalog(tool_input: dict, state: dict) -> str:
             - description (str): The text description to search for.
             - max_results (int, optional): Maximum number of results to return.
               Defaults to MAX_IMAGE_SEARCH_RESULTS.
-        state (dict): The current state of the chat interface, used for storing output.
+        _state (dict): The current state of the chat interface (unused in this function).
+        output_queue (queue.Queue): A queue to put the images into.
 
     Returns:
         str: A summary of the search results, including descriptions of found images.
@@ -1620,7 +1621,7 @@ def get_tool_result_search_image_catalog(tool_input: dict, state: dict) -> str:
         return images  # It's an error
     result = ""
     for image in images:
-        add_as_output(image, state)
+        output_queue.put(image)
         result += f"The image with 'image_id' {image['id']} and this description has been shown to the user:\n\n{image['description']}\n\n"
     if len(result) == 0:
         return f"No images found."
@@ -1628,7 +1629,7 @@ def get_tool_result_search_image_catalog(tool_input: dict, state: dict) -> str:
     return result
 
 
-def get_tool_result_similarity_image_catalog(tool_input: dict, state: dict) -> str:
+def get_tool_result_similarity_image_catalog(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Search for similar images in the image catalog based on a reference image.
 
@@ -1640,7 +1641,8 @@ def get_tool_result_similarity_image_catalog(tool_input: dict, state: dict) -> s
             - image_id (str): The ID of the reference image to search for similar images.
             - max_results (int, optional): Maximum number of results to return.
               Defaults to MAX_IMAGE_SEARCH_RESULTS.
-        state (dict): The current state of the chat interface, used for storing output.
+        _state (dict): The current state of the chat interface (unused in this function).
+        output_queue (queue.Queue): A queue to put the images into.
 
     Returns:
         str: A summary of the search results, including descriptions of found images.
@@ -1661,7 +1663,7 @@ def get_tool_result_similarity_image_catalog(tool_input: dict, state: dict) -> s
     result = ""
     for image in similar_images:
         assert image_id != image["id"]
-        add_as_output(image, state)
+        output_queue.put(image)
         result += f"The image with 'image_id' {image['id']} and this description has been shown to the user:\n\n{image['description']}\n\n"
     if len(result) == 0:
         return f"No similar images found."
@@ -1669,7 +1671,7 @@ def get_tool_result_similarity_image_catalog(tool_input: dict, state: dict) -> s
     return result
 
 
-def get_tool_result_random_images(tool_input: dict, state: dict) -> str:
+def get_tool_result_random_images(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Retrieve random images from the image catalog and add them to the output state.
 
@@ -1679,7 +1681,8 @@ def get_tool_result_random_images(tool_input: dict, state: dict) -> str:
     Args:
         tool_input (dict): A dictionary containing:
             - num (int): The number of random images to retrieve.
-        state (dict): The current state of the chat interface, used for storing output.
+        _state (dict): The current state of the chat interface (unused in this function).
+        output_queue (queue.Queue): A queue to put the images into.
 
     Returns:
         str: A summary of the random images retrieved, including descriptions of each image.
@@ -1696,7 +1699,7 @@ def get_tool_result_random_images(tool_input: dict, state: dict) -> str:
         return random_images  # It's an error
     result = ""
     for image in random_images:
-        add_as_output(image, state)
+        output_queue.put(image)
         result += f"The image with 'image_id' {image['id']} and this description has been shown to the user:\n\n{image['description']}\n\n"
     if len(result) == 0:
         return f"No random images returned."
@@ -1704,12 +1707,17 @@ def get_tool_result_random_images(tool_input: dict, state: dict) -> str:
     return result
 
 
-def get_tool_result_image_catalog_count(_tool_input: dict, _state: dict) -> int | str:
+def get_tool_result_image_catalog_count(_tool_input: dict, _state: dict, _output_queue: queue.Queue) -> int | str:
     """
     Count the number of documents in the image catalog.
 
     This function queries the OpenSearch index to get the total count of images
     in the multimodal index.
+
+    Args:
+        _tool_input (dict): The tool input (unused in this function).
+        _state (dict): The current state of the chat interface (unused in this function).
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         int: The number of images in the catalog.
@@ -1730,7 +1738,7 @@ def get_tool_result_image_catalog_count(_tool_input: dict, _state: dict) -> int 
         return error_message
 
 
-def get_tool_result_download_image_into_catalog(tool_input: dict, state: dict) -> str:
+def get_tool_result_download_image_into_catalog(tool_input: dict, _state: dict, output_queue: queue.Queue) -> str:
     """
     Download an image from a given URL and add it to the image catalog.
 
@@ -1743,7 +1751,8 @@ def get_tool_result_download_image_into_catalog(tool_input: dict, state: dict) -
 
     Args:
         tool_input (dict): A dictionary containing the 'url' key with the image URL.
-        state (dict): The current state of the chat interface, used for storing output.
+        _state (dict): The current state of the chat interface (unused in this function).
+        output_queue (queue.Queue): A queue to put the image into.
 
     Returns:
         str: A message describing the result of the operation, including the image ID
@@ -1799,12 +1808,12 @@ def get_tool_result_download_image_into_catalog(tool_input: dict, state: dict) -
 
     # Convert image bytes to base64
     image = store_image(format, image_base64)
-    add_as_output(image, state)
+    output_queue.put(image)
 
     return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}"
 
 
-def get_tool_result_personal_improvement(tool_input: dict, state: dict) -> str:
+def get_tool_result_personal_improvement(tool_input: dict, state: dict, _output_queue: queue.Queue) -> str:
     """
     Handle personal improvement commands and update the improvement state.
 
@@ -1816,6 +1825,7 @@ def get_tool_result_personal_improvement(tool_input: dict, state: dict) -> str:
             - command (str): The action to perform ('show_improvements' or 'update_improvements').
             - improvements (str, optional): New improvements to be stored, replacing the current ones.
         state (dict): The current state of the chat interface, containing the improvements.
+        _output_queue (queue.Queue): A queue to put the output into (unused in this function).
 
     Returns:
         str: A message indicating the result of the operation.
@@ -1894,7 +1904,7 @@ def check_tools_consistency() -> None:
         raise Exception(f"Tools and tool functions are not consistent: {tools_set} != {tool_functions_set}")
 
 
-def get_tool_result(tool_use_block: dict, state: dict) -> str:
+def get_tool_result(tool_use_block: dict, state: dict, output_queue: queue.Queue) -> str:
     """
     Execute a tool and return its result.
 
@@ -1906,6 +1916,7 @@ def get_tool_result(tool_use_block: dict, state: dict) -> str:
         tool_use_block (dict): A dictionary containing the tool use information,
                                including the tool name and input.
         state (dict): The current state of the application.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         The result of the tool execution.
@@ -1920,27 +1931,43 @@ def get_tool_result(tool_use_block: dict, state: dict) -> str:
     print(f"Using tool {tool_use_name}")
 
     try:
-        return TOOL_FUNCTIONS[tool_use_name](tool_use_block['input'], state)
+        return TOOL_FUNCTIONS[tool_use_name](tool_use_block['input'], state, output_queue)
     except KeyError:
         raise ToolError(f"Invalid function name: {tool_use_name}")
 
 
-def process_response_message(response_message: dict, state: dict) -> None:
+def process_response_message(response_message: dict, state: dict, output_queue: queue.Queue) -> None:
     """
     Process the response message and update the state with the output content.
 
     Args:
         response_message (dict): The response message from the AI model.
         state (dict): The current state of the application.
+        output_queue (queue.Queue): A queue to put the output into.
     """
     output_content = []
     if response_message['role'] == 'assistant' and 'content' in response_message:
         for c in response_message['content']:
             if 'text' in c:
-                output_content.append(c['text'])
-            if 'toolUse' in c:
-                hidden_content = "<!--\n" + str(c['toolUse']) + "\n-->"
-                output_content.append(hidden_content)
+                cleaned_text, removed_tags = remove_specific_xml_tags(c['text'])
+                
+                # Remove <img> tags that link to images not in the catalog
+                def remove_invalid_images(match):
+                    img_tag = match.group(0)
+                    src_match = re.search(r'src="file=(.*?)"', img_tag)
+                    if src_match:
+                        filename = src_match.group(1)
+                        if os.path.exists(filename):
+                            return img_tag
+                    return ''
+                
+                cleaned_text = re.sub(r'<img.*?>', remove_invalid_images, cleaned_text)
+                
+                output_content.append(cleaned_text)
+                if removed_tags:
+                    print(f"Tags removed from output:")
+                    for tag, content in removed_tags.items():
+                        print(f"<{tag}>\n{content}\n</{tag}>\n")
     if response_message['role'] == 'user' and 'content' in response_message:
         for c in response_message['content']:
             if 'toolResult' in c:
@@ -1955,11 +1982,10 @@ def process_response_message(response_message: dict, state: dict) -> None:
                     hidden_content = "<!--\n" + tool_result + "\n-->"
                     output_content.append(hidden_content)
     for m in output_content:
-        m = remove_specific_xml_tags(m)
-        add_as_output({"format": "text", "text": m}, state)
+        output_queue.put({"format": "text", "text": m})
 
 
-def handle_response(response_message: dict, state: dict) -> dict|None:
+def handle_response(response_message: dict, state: dict, output_queue: queue.Queue) -> dict|None:
     """
     Handle the response from the AI model and process any tool use requests.
 
@@ -1971,6 +1997,7 @@ def handle_response(response_message: dict, state: dict) -> dict|None:
         response_message (dict): The response message from the AI model containing
                                  content blocks and potential tool use requests.
         state (dict): The current state of the chat interface.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         dict or None: A follow-up message containing tool results if any tools were used,
@@ -1989,7 +2016,7 @@ def handle_response(response_message: dict, state: dict) -> dict|None:
             tool_use_block = content_block['toolUse']
 
             try:
-                tool_result_value = get_tool_result(tool_use_block, state)
+                tool_result_value = get_tool_result(tool_use_block, state, output_queue)
 
                 if tool_result_value is not None:
                     follow_up_content_blocks.append({
@@ -2050,7 +2077,7 @@ def get_file_name_and_extension(full_file_name: str) -> tuple[str, str]:
     return file_name, extension
 
 
-def format_messages_for_bedrock_converse(message: dict, history: list[dict], state: dict) -> list[dict]:
+def format_messages_for_bedrock_converse(message: dict, history: list[dict], state: dict, output_queue: queue.Queue) -> list[dict]:
     """
     Format messages for the Bedrock converse API.
 
@@ -2062,6 +2089,7 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
         message (dict): The latest user message.
         history (list): A list of previous messages in the conversation.
         state (dict): The current state of the application.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         list: A list of formatted messages ready for the Bedrock converse API.
@@ -2108,7 +2136,6 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
             m_text = m_content.get("text", "")
             m_files = m_content.get("files", [])
         if len(m_text) > 0:
-            m_text = remove_specific_xml_tags(m_text) # To remove <img> tags
             message_content.append({"text": m_text})
             append_message = True
         for file in m_files:
@@ -2116,7 +2143,6 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
             file_name, extension = get_file_name_and_extension(os.path.basename(file))
             if extension == 'jpg':
                 extension = 'jpeg' # Fix
-            # png | jpeg | gif | webp
             if extension in IMAGE_FORMATS:
 
                 file_content = get_image_bytes(
@@ -2139,13 +2165,12 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
                     max_image_dimension=MAX_CHAT_IMAGE_DIMENSIONS
                 )
                 image = store_image(extension, image_base64)
-                add_as_output(image, state)
+                output_queue.put(image)
                 message_content.append({
                     "text": f"The previous image has been stored in the image catalog with 'image_id': {image['id']}"
                 })
 
                 append_message = True
-            # pdf | csv | doc | docx | xls | xlsx | html | txt | md
             elif HANDLE_DOCUMENT_TO_TEXT_IN_CODE:
                 print(f"Importing '{file_name}.{extension}'...")
                 try:
@@ -2185,13 +2210,13 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
                 messages.append({"role": m_role, "content": message_content})
             message_content = []
 
-    # Remove the last user message
+    # Remove the last user message added at the beginning of this function
     history.pop()
 
     return messages
 
 
-def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict) -> None:
+def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict, output_queue: queue.Queue) -> None:
     """
     Run a conversation loop with the AI model, processing responses and handling tool usage.
 
@@ -2204,6 +2229,7 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
         system_prompt (str): The system prompt to guide the AI model's behavior.
         temperature (float): The temperature parameter for the AI model's response generation.
         state (dict): The current state of the chat interface.
+        output_queue (queue.Queue): A queue to put the output into.
 
     Returns:
         str: The final response from the AI model, with XML tags removed.
@@ -2230,7 +2256,7 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
         response_message = response['output']['message']
         messages.append(response_message)
 
-        process_response_message(response_message, state)
+        process_response_message(response_message, state, output_queue)
 
         loop_count = loop_count + 1
 
@@ -2238,7 +2264,7 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
             print(f"Hit loop limit: {loop_count}")
             continue_loop = False
 
-        follow_up_message = handle_response(response_message, state)
+        follow_up_message = handle_response(response_message, state, output_queue)
 
         if follow_up_message is None:
             # No remaining work to do, return final response to user
@@ -2271,24 +2297,36 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
     """
     if message['text'] == '':
         yield "Please enter a message."
+    else:
+        output_queue = queue.Queue()
+        messages = format_messages_for_bedrock_converse(message, history, state, output_queue)
+        thread = threading.Thread(target=manage_conversation_flow, args=(messages, system_prompt, temperature, state, output_queue))
+        thread.start()
 
-    state['output'] = []
-    messages = format_messages_for_bedrock_converse(message, history, state)
-    manage_conversation_flow(messages, system_prompt, temperature, state)
+        num_dots = 1
+        tot_dots = 3
+        response = ""
+        while thread.is_alive() or not output_queue.empty():
+            try:
+                output = output_queue.get(timeout=0.5)
+                if output['format'] == 'text':
+                    response += f"{output['text']}\n"
+                    history.append({"role": "assistant", "content": output['text']})
+                else:
+                    image = output
+                    print(f"Showing image: {image['filename']}")
+                    response += f'<p><img alt="{escape(image["description"])}" src="file={image["filename"]}"></p>\n'
+                yield response  # Yield the response as it's being generated
+                output_queue.task_done()
+            except queue.Empty:
+                if len(response) > 0:
+                    num_dots = (num_dots % tot_dots) + 1
+                    yield f"{response}\n{'.' * num_dots}"
+                continue  # If the queue is empty, continue the loop
 
-    response = ''
-    for output in state['output']:
-        if output['format'] == 'text':
-            additional_text = output['text']
-            response += f"{additional_text}\n"
-            history.append({"role": "assistant", "content": output['text']})
-        else:
-            image = output
-            print(f"Showing image: {image['filename']}")
-            response += f'<p><img alt="{escape(image["description"])}" src="file={image['filename']}"></p>\n'
-
-    print() # Add an additional space
-    yield response
+        print()
+        if not response:
+            yield "No response generated."
 
 
 def import_images(image_path: str) -> None:
@@ -2369,9 +2407,10 @@ def invoke_lambda_function(function_name: str, event: dict) -> dict:
 
     # Get output from response
     payload = response['Payload'].read().decode('utf-8')
-    output = json.loads(payload)
+    body = json.loads(payload).get('body', '{}')
+    result = json.loads(body)
 
-    return output
+    return result
 
 
 def main(args: argparse.Namespace):
