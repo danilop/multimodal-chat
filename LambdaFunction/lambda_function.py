@@ -6,6 +6,9 @@ import subprocess
 
 TMP_DIR = "/tmp"
 
+# To avoid "Matplotlib created a temporary cache directory..." warning
+os.environ['MPLCONFIGDIR'] = os.path.join(TMP_DIR, f'matplotlib_{os.getpid()}')
+
 def remove_tmp_contents():
 
     # Traverse the /tmp directory tree
@@ -56,10 +59,8 @@ def lambda_handler(event, context):
             try:
                 with open(image_path, "rb") as image_file:
                     image_data = image_file.read()
-                    image_format = os.path.splitext(image_path)[1][1:]  # Get the file extension without the dot
-                    image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
                     images.append({
-                        "format": image_format,
+                        "path": image_path,
                         "base64": base64.b64encode(image_data).decode('utf-8')
                     })
             except Exception as e:

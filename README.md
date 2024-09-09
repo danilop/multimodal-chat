@@ -48,14 +48,14 @@ For a comprehensive list of available tools and their usage, refer to `./Config/
 
 1. Clone the repository:
    ```
-   git clone [repository-url]
-   cd [repository-directory]
+   git clone https://github.com/danilop/multimodal-chat
+   cd multimodal-chat
    ```
 
 2. Create and activate a virtual environment (optional but recommended):
    ```
    python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+   source venv/bin/activate # On Windows, use `venv\Scripts\activate`
    ```
 
 3. Install the required packages:

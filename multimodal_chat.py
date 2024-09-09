@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 from typing import Generator
 
 import boto3
+import botocore
 
 import gradio as gr
 from gradio.components.chatbot import FileMessage
@@ -76,7 +77,12 @@ def load_json_config(filename: str) -> dict:
 opensearch_client = None
 
 # AWS SDK for Python (Boto3) clients
-bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION)
+bedrock_config = botocore.config.Config(
+    read_timeout=900,
+    connect_timeout=900,
+    retries={"max_attempts": 0}
+)
+bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=AWS_REGION, config=bedrock_config)
 iam_client = boto3.client('iam', region_name=AWS_REGION)
 lambda_client = boto3.client('lambda', region_name=AWS_REGION)
 
@@ -194,7 +200,7 @@ def print_index_info(client: OpenSearch, index_name: str) -> None:
     except Exception as ex: print(ex)
 
 
-def get_image_bytes(image_source: str, max_image_size: int | None = None, max_image_dimension: int | None = None) -> bytes:
+def get_image_bytes(image_source: str, format: str = "JPEG", max_image_size: int | None = None, max_image_dimension: int | None = None) -> bytes:
     """
     Retrieve image bytes from a source and optionally resize the image.
 
@@ -202,7 +208,8 @@ def get_image_bytes(image_source: str, max_image_size: int | None = None, max_im
     resize the image if it exceeds the specified maximum size or dimension.
 
     Args:
-        image_source (str): URL or local path of the image.
+        image_source (str): URL, local path, or base64-encoded string of the image.
+        format (str, optional): Image format to use when saving the image. Defaults to "JPEG".
         max_image_size (int, optional): Maximum allowed size of the image in bytes.
         max_image_dimension (int, optional): Maximum allowed dimension (width or height) of the image.
 
@@ -213,15 +220,31 @@ def get_image_bytes(image_source: str, max_image_size: int | None = None, max_im
         If resizing is necessary, the function will progressively reduce the image size
         until it meets the specified constraints. The resized image is saved in JPEG format.
     """
-    if image_source.startswith(('http://', 'https://')):
-        # Download image from URL
-        with urllib.request.urlopen(image_source) as response:
-            image_bytes = io.BytesIO(response.read())
-    else:
-        # Open image from local path
-        image_bytes = io.BytesIO()
-        with open(image_source, 'rb') as f:
-            image_bytes.write(f.read())
+
+    def check_if_base64_image(image_source: any) -> io.BytesIO | None:
+        if not isinstance(image_source, str):
+            return None
+
+        try:
+            decoded_data = base64.b64decode(image_source)
+            original_image_bytes = io.BytesIO(decoded_data)
+            Image.open(original_image_bytes)
+            return original_image_bytes
+        except:
+            return None
+
+    image_bytes = check_if_base64_image(image_source)
+    
+    if image_bytes is None:
+        if image_source.startswith(('http://', 'https://')):
+            # Download image from URL
+            with urllib.request.urlopen(image_source) as response:
+                image_bytes = io.BytesIO(response.read())
+        else:
+            # Open image from local path
+            image_bytes = io.BytesIO()
+            with open(image_source, 'rb') as f:
+                image_bytes.write(f.read())
 
     original_image_bytes = io.BytesIO(image_bytes.getvalue())
     image_size = len(image_bytes.getvalue())
@@ -234,7 +257,7 @@ def get_image_bytes(image_source: str, max_image_size: int | None = None, max_im
                 resize_comment = f"Divided by {divide_by}"
                 img = img.resize(tuple(x // divide_by for x in img.size))
                 image_bytes = io.BytesIO()
-                img.save(image_bytes, format="JPEG", quality=JPEG_SAVE_QUALITY)
+                img.save(image_bytes, format=format)
                 image_size = image_bytes.tell()
             else:
                 resize_comment = "Original"
@@ -251,12 +274,13 @@ def get_image_bytes(image_source: str, max_image_size: int | None = None, max_im
     return image_bytes.getvalue()
 
 
-def get_image_base64(image_source: str, max_image_size: int | None = None, max_image_dimension: int | None = None) -> str:
+def get_image_base64(image_source: str, format: str = "JPEG", max_image_size: int | None = None, max_image_dimension: int | None = None) -> str:
     """
     Convert an image to a base64-encoded string, with optional resizing.
 
     Args:
         image_source (str): URL or local path of the image.
+        format (str, optional): Image format to use when saving the image. Defaults to "JPEG".
         max_image_size (int, optional): Maximum allowed size of the image in bytes.
         max_image_dimension (int, optional): Maximum allowed dimension (width or height) of the image.
 
@@ -267,7 +291,7 @@ def get_image_base64(image_source: str, max_image_size: int | None = None, max_i
         This function uses get_image_bytes to retrieve and potentially resize the image
         before encoding it to base64.
     """
-    image_bytes = get_image_bytes(image_source, max_image_size, max_image_dimension)
+    image_bytes = get_image_bytes(image_source, format, max_image_size, max_image_dimension)
     return base64.b64encode(image_bytes).decode('utf-8')
 
 
@@ -802,7 +826,7 @@ def get_image_by_id(image_id: str, return_base64: bool = False) -> dict|str:
         image = response['_source']
         image['id'] = image_id
         if return_base64:
-            image['base64'] = get_image_base64(image['filename'])
+            image['base64'] = get_image_base64(image['filename'], format=image['format'])
         return image
     except NotFoundError:
         return "Not found."
@@ -1029,7 +1053,7 @@ def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Q
     if len_output > MAX_OUTPUT_LENGTH:
         output = output[:MAX_OUTPUT_LENGTH] + "\n... (truncated)"
     print(f"Output:\n---\n{output}\n---\nThe user will see the script and its output.")
-    output_queue.put({"format": "text", "text": f"**Python**\n```python\n{input_script}\n```\n"})
+    output_queue.put({"format": "text", "text": f"**Script**\n```python\n{input_script}\n```\n"})
     output_queue.put({"format": "text", "text": f"**Output**\n```\n{output}\n```\n"})
 
     for i in images:
@@ -1037,7 +1061,12 @@ def get_tool_result_python(tool_input: dict, _state: dict, output_queue: queue.Q
         image_path = i['path']
         image_format = os.path.splitext(image_path)[1][1:] # Remove the leading dot
         image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
-        image = store_image(image_format, i['base64'])
+        image_base64 = get_image_base64(i['base64'],
+                                        format=image_format,
+                                        max_image_size=MAX_CHAT_IMAGE_SIZE,
+                                        max_image_dimension=MAX_CHAT_IMAGE_DIMENSIONS)
+
+        image = store_image(image_format, image_base64)
         output_queue.put(image)
         output += f"\nImage {image_path} has been stored in the image catalog with 'image_id': {image['id']}"
 
@@ -1832,6 +1861,7 @@ def get_tool_result_download_image_into_catalog(tool_input: dict, _state: dict, 
     # Get file extension from URL
     try:
         image_base64 = get_image_base64(url,
+                                        format=format,
                                         max_image_size=MAX_CHAT_IMAGE_SIZE,
                                         max_image_dimension=MAX_CHAT_IMAGE_DIMENSIONS)
     except Exception as ex:
@@ -2058,7 +2088,7 @@ def handle_response(response_message: dict, state: dict, output_queue: queue.Que
                         }
                     })
 
-            except ToolError as e:
+            except Exception as e:
                 follow_up_content_blocks.append({
                     "toolResult": {
                         "toolUseId": tool_use_block['toolUseId'],
@@ -2191,6 +2221,7 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
 
                 image_base64 = get_image_base64(
                     file,
+                    format=extension,
                     max_image_size=MAX_CHAT_IMAGE_SIZE,
                     max_image_dimension=MAX_CHAT_IMAGE_DIMENSIONS
                 )
@@ -2246,7 +2277,7 @@ def format_messages_for_bedrock_converse(message: dict, history: list[dict], sta
     return messages
 
 
-def manage_conversation_flow(messages: list[dict], system_prompt: str, temperature: float, state: dict, output_queue: queue.Queue) -> None:
+def manage_conversation_flow(messages: list[dict], temperature: float, system_prompt: str, state: dict, output_queue: queue.Queue) -> None:
     """
     Run a conversation loop with the AI model, processing responses and handling tool usage.
 
@@ -2303,7 +2334,7 @@ def manage_conversation_flow(messages: list[dict], system_prompt: str, temperatu
             messages.append(follow_up_message)
 
 
-def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, temperature: float, state: dict, output_queue: queue.Queue) -> None:
+def manage_conversation_flow_stream(messages: list[dict], temperature: float, system_prompt: str, state: dict, output_queue: queue.Queue) -> None:
     """
     Run a conversation loop with the AI model using streaming, processing responses and handling tool usage.
 
@@ -2372,7 +2403,6 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
                 case {'metadata': metadata}:
                     print(f"Metadata: {metadata}")
                 case {'contentBlockStart': content_block_start}:
-                    print(f"ContentBlockStart: {content_block_start}")
                     match content_block_start['start']:
                         case {'toolUse': tool_use_start}:
                             print(f"ToolUse: {tool_use_start}")
@@ -2390,11 +2420,11 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
                         case _:
                             print(f"Unknown delta: {chunk}")
                 case {'contentBlockStop': content_block_stop}:
-                    print(f"ContentBlockStop: {content_block_stop}")
-                    new_message = {
-                        "role": "assistant",
-                        "content": [ { "text": new_content } ],
-                    }
+                    if len(new_content) > 0:
+                        new_message = {
+                            "role": "assistant",
+                            "content": [ { "text": new_content } ],
+                        }
                     if tool_use_block:
                         print(f"ToolUse: {tool_use_block}")
 
@@ -2405,15 +2435,15 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
                             def format_tool_name(tool_id):
                                 return tool_id.replace('_', ' ').title()
 
-                            tool_use_output = f"\n\nUsing tool: {format_tool_name(tool_use_block['name'])}\n"
+                            tool_use_output = f"\n\nUsing tool: **{format_tool_name(tool_use_block['name'])}**\n"
                             for k, v in tool_use_block['input'].items():
+                                # Print not multi-line parameters only
                                 if isinstance(v, str) and '\n' not in v:
-                                    tool_use_output += f"\n- {k}: {v}"
+                                    tool_use_output += f"- {k}: {v}\n"
 
                             output_queue.put({"format": "text", "text": tool_use_output})
 
                             tool_result_value = get_tool_result(tool_use_block, state, output_queue)
-                            print(f"ToolResult: {tool_result_value}")
 
                             if tool_result_value is not None:
                                 follow_up_content_blocks.append({
@@ -2425,7 +2455,8 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
                                     }
                                 })
 
-                        except ToolError as e:
+                        except Exception as e:
+                            print(f"Error processing tool use: {e}")
                             follow_up_content_blocks.append({
                                 "toolResult": {
                                     "toolUseId": tool_use_block['toolUseId'],
@@ -2433,7 +2464,7 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
                                     "status": "error"
                                 }
                             })
-                        
+
                         finally:
                             messages.append(new_message)
                             tool_use_block = None
@@ -2462,11 +2493,9 @@ def manage_conversation_flow_stream(messages: list[dict], system_prompt: str, te
             continue_loop = False
         else:
             messages.append(follow_up_message)
+            print(f"Messages: {messages}")
 
-        print(f"Messages: {messages}")
-
-
-def chat_function(message: dict, history: list[dict], system_prompt: str, temperature: float, state: dict) -> Generator[str, None, None]:
+def chat_function(message: dict, history: list[dict], streaming: bool, temperature: float, system_prompt: str, state: dict) -> Generator[str, None, None]:
     """
     Process a chat message and generate a response using an AI model.
 
@@ -2493,11 +2522,11 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
     else:
         output_queue = queue.Queue()
         messages = format_messages_for_bedrock_converse(message, history, state, output_queue)
-        if STREAMING:
+        if streaming:
             target_function = manage_conversation_flow_stream
         else:
             target_function = manage_conversation_flow
-        thread = threading.Thread(target=target_function, args=(messages, system_prompt, temperature, state, output_queue))
+        thread = threading.Thread(target=target_function, args=(messages, temperature, system_prompt, state, output_queue))
         thread.start()
 
         num_dots = 1
@@ -2508,7 +2537,7 @@ def chat_function(message: dict, history: list[dict], system_prompt: str, temper
                 output = output_queue.get(timeout=0.5)
                 if output['format'] == 'text':
                     response += f"{output['text']}"
-                    if not STREAMING:
+                    if not streaming:
                         response += "\n"
                     history.append({"role": "assistant", "content": output['text']})
                 else:
@@ -2559,8 +2588,10 @@ def import_images(image_path: str) -> None:
     def import_image(file):
         print(f"Found: {file}")
         file_name, extension = get_file_name_and_extension(file)
+        if extension == 'jpg':
+            extension = 'jpeg' # Fix
         if extension in IMAGE_FORMATS:
-            image_base64 = get_image_base64(image_path + file)
+            image_base64 = get_image_base64(image_path + file, format=extension)
             image = store_image(extension, image_base64, file_name)
             return image
 
@@ -2690,8 +2721,9 @@ def main(args: argparse.Namespace):
         examples=formatted_examples,
         examples_per_page=2,
         additional_inputs=[
-            gr.Textbox(DEFAULT_SYSTEM_PROMPT, label="System Prompt"),
+            gr.Checkbox(STREAMING, label="Streaming"),
             gr.Slider(0, 1, value=DEFAULT_TEMPERATURE, label="Temperature"),
+            gr.Textbox(DEFAULT_SYSTEM_PROMPT, label="System Prompt"),
             state,
         ],
         fill_height=True,

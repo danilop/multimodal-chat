@@ -4,6 +4,7 @@ _config = configparser.ConfigParser()
 _config.read('Config/config.ini')
 
 # Global constants loaded from the config file
+STREAMING = _config['DEFAULT'].getboolean('STREAMING')
 AWS_REGION = _config['DEFAULT']['AWS_REGION']
 MODEL_ID = _config['DEFAULT']['MODEL_ID']
 IMAGE_GENERATION_MODEL_UD = _config['DEFAULT']['IMAGE_GENERATION_MODEL_UD']

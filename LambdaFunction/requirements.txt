@@ -6,3 +6,5 @@ tabulate
 matplotlib
 yfinance
 qrcode
+mermaid-py
+networkx
