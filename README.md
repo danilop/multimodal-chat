@@ -7,9 +7,10 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 - Search and browse the web in real-time
 - Query Wikipedia for information
 - Perform news and map searches
-- Safely execute Python code
-- Compose long-form articles
+- Safely execute Python code that can produce text and images such as charts and diagrams
+- Compose long-form articles mixing text and images
 - Generate, search, and compare images
+- Analyze documents and images
 
 ## Key Features and Tools
 
@@ -22,15 +23,18 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
    - Geodata Search: Locates Wikipedia articles by geographic location
    - Page Retriever: Fetches full Wikipedia page content
 
-3. **Python Scripting**: Runs Python scripts for computations, testing, and output generation
+3. **Python Scripting**:
+   - Runs Python scripts for computations, testing, and output generation, including text and images
+   - Python modules can be added to the Python interpreter
+   - Python code is run in a secure environment provided by AWS Lambda
 
 4. **Content Management**:
-   - Personal Archive: Stores and retrieves text, Markdown, or HTML content
+   - Personal Archive: Stores and retrieves text, Markdown, or HTML content, using a semantic database
    - Sketchbook: Manages a multi-page sketchbook for writing and reviewing long-form content
 
 5. **Image Handling**:
    - Image Generation: Creates images based on text prompts
-   - Image Catalog: Searches, compares, and manages images
+   - Image Catalog: Searches, compares, and manages images by description or image similarity
    - Image Downloader: Adds images from URLs to the catalog
 
 6. **Self-Improvement**:
@@ -40,9 +44,9 @@ For a comprehensive list of available tools and their usage, refer to `./Config/
 
 ## Requirements
 
-1. A container tool: Docker or Finch (To install Finch, follow the [instructions here](https://runfinch.com/))
+1. A container tool: Docker or Finch (to install Finch, follow the [instructions here](https://runfinch.com/))
 2. Python 3.12 or newer
-3. AWS account with appropriate permissions
+3. AWS account with appropriate permissions to access Amazon Bedrock, AWS Lambda, and Amazon ECR
 
 ## Installation
 
