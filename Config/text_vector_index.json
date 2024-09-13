@@ -4,9 +4,6 @@
             "date": {
                 "type": "keyword"
             },
-            "code": {
-                "type": "keyword"
-            },
             "url": {
                 "type": "keyword"
             },

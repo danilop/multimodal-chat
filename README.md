@@ -11,6 +11,10 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 - Compose long-form articles mixing text and images
 - Generate, search, and compare images
 - Analyze documents and images
+- Search and download arXiv papers
+- Generate and save conversations as text and audio files
+- Save files to the output directory
+- Track personal improvements
 
 ## Key Features and Tools
 
@@ -30,15 +34,32 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 
 4. **Content Management**:
    - Personal Archive: Stores and retrieves text, Markdown, or HTML content, using a semantic database
-   - Sketchbook: Manages a multi-page sketchbook for writing and reviewing long-form content
+   - Sketchbook: Manages a multi-page sketchbook for writing and reviewing long-form content. Supports multiple output formats:
+     - Markdown (.md): For easy reading and editing
+     - HTML (.html): For web-based viewing
+     - PDF (.pdf): For professional document sharing
 
 5. **Image Handling**:
    - Image Generation: Creates images based on text prompts
    - Image Catalog: Searches, compares, and manages images by description or image similarity
    - Image Downloader: Adds images from URLs to the catalog
 
-6. **Self-Improvement**:
-   - Personal Improvement Tracker: Tracks suggestions and mistakes for future enhancements
+6. **arXiv Integration**:
+   - Search and download arXiv papers
+   - Store paper content in the archive for easy retrieval
+
+7. **Conversation Generation**:
+   - Transform content into a conversation between three people
+   - Generate audio files for the conversation using text-to-speech
+
+8. **File Management**:
+   - Save text files to the output directory
+
+9. **Personal Improvement**:
+   - Track suggestions and mistakes for future enhancements
+
+10. **Self-Improvement**:
+    - Personal Improvement Tracker: Tracks suggestions and mistakes for future enhancements
 
 For a comprehensive list of available tools and their usage, refer to `./Config/tools.json`.
 
@@ -79,6 +100,11 @@ For a comprehensive list of available tools and their usage, refer to `./Config/
    brew install --cask chromedriver
    ```
 
+6. To output audio, install `ffmpeg`. Using Homebrew:
+   ```
+   brew install ffmpeg
+   ```
+
 ## Setting up OpenSearch
 
 You can either use a local OpenSearch instance or connect to a remote server. For local setup:
@@ -88,7 +114,7 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
    cd OpenSearch/
    ```
 
-2. Set the admin password (first-time setup):
+2. Set the admin password (first-time setup), this step will create the `.env` file and the `opensearch_env.sh` files:
    ```
    ./set_password.sh
    ```
@@ -101,6 +127,8 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
 4. Ensure OpenSearch (2 nodes + dashboard) starts correctly by checking the output
 
 For remote server setup, update the client creation code in the main script.
+
+To change password, you need to delete the container uisng `finch` or `docker` and then set a new password.
 
 ## Usage
 
@@ -121,11 +149,41 @@ This section assumes OpenSearch is running locally in another terminal window as
    python multimodal_chat.py --reset-index
    ```
 
-4. Open a web browser and navigate to http://127.0.0.1:7860/ to start chatting
+4. Open a web browser and navigate to http://127.0.0.1:7860/ to start chatting.
 
 ## Examples
 
-The `Examples` section in the chat interface provides sample queries to help you get started. These demonstrate various capabilities of the chatbot, including web searches, code execution, and image-related tasks.
+Here are examples of how to use various tools:
+
+1. **Web Search**:
+   "Search the web for recent advancements in quantum computing."
+
+2. **Wikipedia**:
+   "Find Wikipedia articles about the history of artificial intelligence."
+
+3. **Python Scripting**:
+   "Create a Python script to generate a bar chart of global CO2 emissions by country."
+
+4. **Sketchbook**:
+   "Start a new sketchbook and write an introduction about the impact of AI on healthcare."
+
+5. **Image Generation**:
+   "Generate an image of a futuristic city with flying cars and tall skyscrapers."
+
+6. **Image Search**:
+   "Search the image catalog for pictures of endangered species."
+
+7. **arXiv Integration**:
+   "Search for recent research papers on deep learning in natural language processing."
+
+8. **Conversation Generation**:
+   "Create a conversation between three experts discussing the ethical implications of AI."
+
+9. **File Management**:
+   "Save a summary of our discussion about climate change to a file named 'climate_change_summary.txt'."
+
+10. **Personal Improvement**:
+    "Here's a suggestion to improve: to improve answers, search for official sources."
 
 ## Demo videos
 
@@ -137,7 +195,7 @@ In this demo:
 - Browse websites using Selenium and specific tools for DuckDuckGo (search, news, geosearch) and Wikipedia
 - Use the semantic text archive tool to archive documents and retrieve by keywords
 
-[![Multimodal Chat Demo 1 – Browse the internet and use the semantic archive](https://img.youtube.com/vi/4ZzYwmltEk4/0.jpg)](https://www.youtube.com/watch?v=4ZzYwmltEk4)
+[![Multimodal Chat Demo 1 – Browse the internet and use the semantic archive](https://img.youtube.com/vi/HNBwQ3PEgWU/0.jpg)](https://www.youtube.com/watch?v=HNBwQ3PEgWU)
 
 ### Import and search Images
 
@@ -201,5 +259,13 @@ Contributions to Yet Another Chatbot are welcome! Please refer to the contributi
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Usage Tips
+
+- Combine multiple tools for complex tasks. For example, use the web search to find information, then use the sketchbook to write a summary, and finally generate a conversation about the topic.
+- When working with images, you can generate new images, search for existing ones, or download images from the web to add to your catalog.
+- Use the arXiv integration to stay up-to-date with the latest research in your field of interest.
+- The conversation generation tool is great for creating engaging content or preparing for presentations.
+- Regularly check and update your personal improvements to track your progress and areas for growth.
 
 For more detailed information on specific components or advanced usage, please refer to the inline documentation in the source code.

@@ -1,4 +1,8 @@
+__pycache__/
+.DS_Store
+.venv/
+Config/image_uri.txt
+OpenSearch/.env
+OpenSearch/opensearch_env.sh
 Images/
 Output/
-.venv/
-.DS_Store

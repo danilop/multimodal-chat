@@ -1,8 +1,9 @@
 #!/bin/sh
 AWS_REGION="us-east-1"
-#AWS_REGION="us-west-2"
 CONTAINER_TOOL="finch" # Can be docker
-LAMBDA_FUNCTION_TIMEOUT=300 # seconds
+LAMBDA_FUNCTION_MEMORY=2048 # MB
+LAMBDA_FUNCTION_TIMEOUT=60 # seconds
+LAMBDA_FUNCTION_ARCHITECTURE="arm64"
 BASE_NAME="yet-another-chatbot"
 
 if ! command -v "${CONTAINER_TOOL}" >/dev/null 2>&1; then
@@ -60,7 +61,7 @@ sleep 10
 FUNCTION_NAME="${IMAGE_NAME}-function"
 
 echo "Creating or updating Lambda function..."
-FUNCTION_ARN=$(aws lambda create-function --region ${AWS_REGION} --function-name ${FUNCTION_NAME} --architectures arm64 --memory-size 2048 --timeout ${LAMBDA_FUNCTION_TIMEOUT} --package-type Image --code ImageUri=${IMAGE_URI_WITH_TAG} --role ${ROLE_ARN} --query FunctionArn --output text)
+FUNCTION_ARN=$(aws lambda create-function --region ${AWS_REGION} --function-name ${FUNCTION_NAME} --architectures ${LAMBDA_FUNCTION_ARCHITECTURE} --memory-size ${LAMBDA_FUNCTION_MEMORY} --timeout ${LAMBDA_FUNCTION_TIMEOUT} --package-type Image --code ImageUri=${IMAGE_URI_WITH_TAG} --role ${ROLE_ARN} --query FunctionArn --output text)
 echo "Function ARN: ${FUNCTION_ARN}"
 
 echo "Waiting for Lambda function to be active..."
@@ -69,7 +70,18 @@ aws lambda wait function-active-v2 --region ${AWS_REGION} --function-name ${FUNC
 echo "Waiting for Lambda function to be ready for an update..."
 aws lambda wait function-updated-v2 --region ${AWS_REGION} --function-name ${FUNCTION_NAME} 
 
-echo "Updating Lambda function code..."
-FUNCTION_UPDATE_STATUS=$(aws lambda update-function-code --region ${AWS_REGION} --function-name ${FUNCTION_NAME} --image-uri ${IMAGE_URI_WITH_TAG} --query LastUpdateStatus)
+echo "Updating Lambda function configuration..."
+FUNCTION_UPDATE_STATUS=$(aws lambda update-function-configuration --region ${AWS_REGION} --function-name ${FUNCTION_NAME} --memory-size ${LAMBDA_FUNCTION_MEMORY} --timeout ${LAMBDA_FUNCTION_TIMEOUT} --query LastUpdateStatus)
 
 echo "Update status: ${FUNCTION_UPDATE_STATUS}"
+
+echo "Waiting for Lambda function update to be completed..."
+aws lambda wait function-updated-v2 --region ${AWS_REGION} --function-name ${FUNCTION_NAME} 
+
+echo "Updating Lambda function code..."
+FUNCTION_UPDATE_STATUS=$(aws lambda update-function-code --region ${AWS_REGION} --function-name ${FUNCTION_NAME} --architectures ${LAMBDA_FUNCTION_ARCHITECTURE} --image-uri ${IMAGE_URI_WITH_TAG} --query LastUpdateStatus)
+
+echo "Update status: ${FUNCTION_UPDATE_STATUS}"
+
+echo "Waiting for Lambda function update to be completed..."
+aws lambda wait function-updated-v2 --region ${AWS_REGION} --function-name ${FUNCTION_NAME} 

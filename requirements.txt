@@ -9,3 +9,6 @@ Pillow
 wikipedia
 pypandoc_binary
 pypdf
+chardet
+arxiv
+pydub

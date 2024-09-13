@@ -4,7 +4,6 @@ mpmath
 numba
 tabulate
 matplotlib
+networkx
 yfinance
 qrcode
-mermaid-py
-networkx
