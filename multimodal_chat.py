@@ -26,7 +26,7 @@ from rich import print
 import numpy as np
 np.float_ = np.float64
 
-from libs import load_json_config
+from libs import between_xml_tag, load_json_config
 from config import Config
 from clients import Clients
 from utils import Utils
@@ -320,7 +320,8 @@ class MultimodalChat:
 
                     append_message = True
                 elif self.config.HANDLE_DOCUMENT_TO_TEXT_IN_CODE:
-                    print(f"Importing '{file_name}.{extension}'...")
+                    file_name_with_extension = f'{file_name}.{extension}'
+                    print(f"Importing '{file_name_with_extension}'...")
                     try:
                         if extension == 'pdf':
                             file_text = self.utils.process_pdf_document(file)
@@ -329,8 +330,10 @@ class MultimodalChat:
                                     file_text = f.read()
                         else:
                             file_text = self.utils.process_non_pdf_documents(file)
-                        file_message = self.utils.with_xml_tag(file_text, 'file', {'filename': f'{file_name}.{extension}'})
+                        file_message = between_xml_tag(file_text, 'file', {'filename': file_name_with_extension})
+                        self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension}, big=True)
                         message_content.append({ "text": file_message })
+                        message_content.append({ "text": f"File '{file_name_with_extension}' has been imported into the archive." })
                     except Exception as ex:
                         error_message = f"Error processing {file_name}.{extension} file: {ex}"
                         message_content.append({ "text": error_message })
@@ -596,6 +599,12 @@ class MultimodalChat:
             This function modifies the 'state' dictionary to store output for display in the chat interface.
             It handles both text and file inputs, and can display generated images in the response.
         """
+        def format_response(response):
+            response = self.utils.process_image_placeholders(response)
+            response = self.utils.remove_specific_xml_tags(response)
+            response = self.utils.replace_specific_xml_tags(response)
+            return response
+
         if message['text'] == '':
             yield "Please enter a message."
         else:
@@ -607,7 +616,7 @@ class MultimodalChat:
             thread = threading.Thread(target=target_function, args=(messages, temperature, system_prompt))
             thread.start()
 
-            num_dots = 1
+            num_dots = 0
             tot_dots = 3
             response = ""
             while thread.is_alive() or not self.output_queue.empty():
@@ -616,16 +625,15 @@ class MultimodalChat:
                     response += output['text']
                     if not streaming:
                         response += "\n"
-                    response = self.utils.process_image_placeholders(response)
-                    yield self.utils.remove_specific_xml_tags(response) # Yield the response as it's being generated
+                    yield format_response(response) # Yield the response as it's being generated
                     self.output_queue.task_done()
                 except queue.Empty:
                     if len(response) > 0:
                         num_dots = (num_dots % tot_dots) + 1
-                        yield f"{self.utils.remove_specific_xml_tags(response)}\n{'.' * num_dots}"
+                        yield f"{format_response(response)}\n{'.' * num_dots}"
                     continue  # If the queue is empty, continue the loop
 
-            yield self.utils.remove_specific_xml_tags(response) # To avoid the last dot(s)
+            yield format_response(response) # To avoid the last dot(s)
 
             print()
             if not response:

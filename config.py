@@ -40,6 +40,8 @@ class Config:
         self.MAX_WORKERS = config['DEFAULT'].getint('MAX_WORKERS')
         self.MIN_CHUNK_LENGTH = config['DEFAULT'].getint('MIN_CHUNK_LENGTH')
         self.MAX_CHUNK_LENGTH = config['DEFAULT'].getint('MAX_CHUNK_LENGTH')
+        self.BIG_MAX_CHUNK_LENGTH = config['DEFAULT'].getint('BIG_MAX_CHUNK_LENGTH')
+        self.BIG_MIN_CHUNK_LENGTH = config['DEFAULT'].getint('BIG_MIN_CHUNK_LENGTH')
         self.MAX_SEARCH_RESULTS = config['DEFAULT'].getint('MAX_SEARCH_RESULTS')
         self.MAX_ARCHIVE_RESULTS = config['DEFAULT'].getint('MAX_ARCHIVE_RESULTS')
         self.MAX_ARXIV_RESULTS = config['DEFAULT'].getint('MAX_ARXIV_RESULTS')

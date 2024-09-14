@@ -489,7 +489,7 @@ class Utils:
 
         return response
 
-    def add_to_text_index(self, text: str, id: str, metadata: dict, metadata_delete: dict|None=None) -> None:
+    def add_to_text_index(self, text: str, id: str, metadata: dict, metadata_delete: dict|None=None, big: bool=False) -> None:
         """
         Add text content to the text index in OpenSearch.
 
@@ -533,9 +533,6 @@ class Utils:
             if deleted > 0:
                 print(f"Deleted old content: {deleted}")
 
-        chunks = self.split_text_for_collection(text)
-        print(f"Split into {len(chunks)} chunks")
-
         def process_chunk(i, chunk, metadata, id):
             formatted_metadata = '\n '.join([f"{key}: {value}" for key, value in metadata.items()])
             chunk = f"{formatted_metadata}\n\n{chunk}"
@@ -547,6 +544,9 @@ class Utils:
             }
             document = document | metadata
             return document
+
+        chunks = self.split_text_for_collection(text, big=big)
+        print(f"Split into {len(chunks)} chunks")
 
         # Compute embeddings
         avg_chunk_length = sum(len(chunk) for chunk in chunks) / len(chunks)
@@ -560,7 +560,6 @@ class Utils:
             for future in concurrent.futures.as_completed(futures):
                 document = future.result()
                 documents.append(document)
-
         print(f"Indexing {len(documents)} chunks...")
 
         success, failed = bulk(
@@ -571,7 +570,7 @@ class Utils:
         )
         print(f"Indexed {success} documents successfully, {len(failed)} documents failed.")
 
-    def split_text_for_collection(self, text: str) -> list[str]:
+    def split_text_for_collection(self, text: str, big: bool = False) -> list[str]:
         """
         Split the input text into chunks suitable for indexing or processing.
 
@@ -595,13 +594,20 @@ class Utils:
 
         sentences = re.split(r'\. |\n|[)}\]][^a-zA-Z0-9]*[({\[]', text)
 
+        if big:
+            max_chunk_length = self.config.BIG_MAX_CHUNK_LENGTH
+            min_chunk_length = self.config.BIG_MIN_CHUNK_LENGTH
+        else:
+            max_chunk_length = self.config.MAX_CHUNK_LENGTH
+            min_chunk_length = self.config.MIN_CHUNK_LENGTH
+
         chunk = ''
         next_chunk = ''
         for sentence in sentences:
             sentence = sentence.strip(' \n')
-            if len(chunk) < self.config.MAX_CHUNK_LENGTH:
+            if len(chunk) < max_chunk_length:
                 chunk += sentence + "\n"
-                if len(chunk) > self.config.MIN_CHUNK_LENGTH:
+                if len(chunk) > min_chunk_length:
                     next_chunk += sentence + "\n"
             else:
                 if len(chunk) > 0:
@@ -881,6 +887,44 @@ class Utils:
         except Exception as ex: print(ex)
 
 
+    def replace_specific_xml_tags(self, text: str) -> str:
+        """
+        Replace specific XML tags with their content.
+
+        This function replaces specified XML tags with their content.
+        It targets specific tags related to quality scores and reflections.
+        it replaces both opening and closing tags.
+
+        Args:
+            text (str): The input text containing XML tags.
+
+        Returns:
+            str: The text with specified XML tags replaced by their content.
+
+        Note:
+            This function uses regular expressions for tag replacement, which may not be suitable for
+            processing very large XML documents due to performance considerations.
+        """
+        cleaned_text = text
+
+        tag_to_replace = {
+            'thinking': 'small',
+        }
+
+        # Replace specific XML tags with their content
+        for tag, replacement in tag_to_replace.items():
+            def replace_tag(tag, pattern, cleaned_text):
+                return re.sub(pattern, lambda m: f"<{replacement}>{m.group(1)}</{replacement}>", cleaned_text, flags=re.DOTALL)
+
+            # Replace both opening and closing tags
+            pattern = fr'<{tag}>(.*?)</{tag}>'
+            cleaned_text = replace_tag(tag, pattern, cleaned_text)
+            
+            # Replace unclosed tags (opening tag without closing tag)
+            unclosed_pattern = fr'<{tag}>(.*?)(?=<|$)'
+            cleaned_text = replace_tag(tag, unclosed_pattern, cleaned_text)
+        return cleaned_text
+
     def remove_specific_xml_tags(self, text: str) -> str:
         """
         Remove specific XML tags and their content from the input text and return a dictionary of removed content.
@@ -900,12 +944,11 @@ class Utils:
         """
         cleaned_text = text
 
+        tags_to_remove = ['search_quality_reflection', 'search_quality_score', 'image_quality_score'] # , 'thinking']:
+
         # Remove specific XML tags and their content
-        for tag in ['search_quality_reflection', 'search_quality_score', 'image_quality_score']: # , 'thinking']:
+        for tag in tags_to_remove:
             def remove_tag(tag, pattern, cleaned_text):
-                matches = re.findall(pattern, cleaned_text, flags=re.DOTALL)
-                for match in matches:
-                    print(f"Removed {tag}: {match.strip()}")
                 return re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
 
             # Remove closed tags
