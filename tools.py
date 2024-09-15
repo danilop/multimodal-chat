@@ -339,7 +339,7 @@ class Tools:
         print(f"Summary length: {len(summary)}")
         
         output = f"""The full content of the page ({len(page_text)} characters) has been stored in the archive.
-            You can now retrieve more information from the archive using keywords or browse links to get more information.
+            Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
         
@@ -418,7 +418,7 @@ class Tools:
         print(f"Summary length: {len(summary)}")
         
         output = f"""The full content of the URL ({len(page_text)} characters) has been stored in the archive.
-            You can now retrieve more information from the archive using keywords or browse links to get more information.
+            Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
         
@@ -592,21 +592,21 @@ class Tools:
                 self.state["sketchbook"].append(content)
                 num_pages = len(self.state["sketchbook"])
                 self.state["sketchbook_current_page"] = num_pages - 1
-                return f"New page added at the end. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. You can add more pages, start a review, or share the sketchbook with the user."
+                return f"New page added at the end. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. Add more pages, start a review, or share the sketchbook with the user."
             case "start_review":
                 if num_pages == 0:
                     return "The sketchbook is empty. There are no pages to review or update. Start by adding some content."
                 self.state["sketchbook_current_page"] = 0
                 page_content = self.state["sketchbook"][0]
-                page_content_with_tag = between_xml_tag(page_content, "page")
-                return f"You're starting your review at page 1 of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
+                page_content_between_xml_tag = between_xml_tag(page_content, "page")
+                return f"You're starting your review at page 1 of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
             case "next_page":
                 if self.state["sketchbook_current_page"] >= num_pages - 1:
-                    return f"You're at the end. You're at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. You can start a review or share the sketchbook with the user."
+                    return f"You're at the end. You're at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. Start a review or share the sketchbook with the user."
                 self.state["sketchbook_current_page"] += 1
                 page_content = self.state["sketchbook"][self.state["sketchbook_current_page"]]
-                page_content_with_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
-                return f"Moving to the next page. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
+                page_content_between_xml_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
+                return f"Moving to the next page. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
             case "update_current_page":
                 if num_pages == 0:
                     return "The sketchbook is empty. There are no pages. Start by adding some content."
@@ -630,8 +630,8 @@ class Tools:
                 if self.state["sketchbook_current_page"] >= num_pages - 1:
                     self.state["sketchbook_current_page"] -= 1
                 page_content = self.state["sketchbook"][self.state["sketchbook_current_page"]]
-                page_content_with_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
-                return f"The page has been deleted. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_with_tag}\n\nYou can update the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
+                page_content_between_xml_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
+                return f"The page has been deleted. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
             case "share_sketchbook" | "save_sketchbook_file":
                 if num_pages == 0:
                     return "The sketchbook is empty. There are no pages to share or save."
