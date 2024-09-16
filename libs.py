@@ -50,7 +50,7 @@ def get_base_url(url: str) -> str:
     """
     Extract the base URL from a given URL.
 
-    This function takes a full URL and returns its base URL, which consists
+    This method takes a full URL and returns its base URL, which consists
     of the scheme (e.g., 'http', 'https') and the network location (domain).
 
     Args:
@@ -72,7 +72,7 @@ def mark_down_formatting(html_text: str, url: str) -> str:
     """
     Convert HTML text to Markdown format with preserved hyperlinks and images.
 
-    This function takes HTML text and a base URL, then converts the HTML to Markdown
+    This method takes HTML text and a base URL, then converts the HTML to Markdown
     while maintaining the structure of links and images. It uses the html2text library
     for the conversion process.
 

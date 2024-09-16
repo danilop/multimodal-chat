@@ -38,7 +38,7 @@ class Utils:
         """
         Generate an embedding vector for the given image and/or text input using Amazon Bedrock.
 
-        This function can handle text-only, image-only, or multimodal (text + image) inputs.
+        This method can handle text-only, image-only, or multimodal (text + image) inputs.
         It selects the appropriate embedding model based on the input types and the multimodal flag.
 
         Args:
@@ -90,14 +90,24 @@ class Utils:
         """
         Add an image and its metadata to the multimodal index in OpenSearch.
 
-        This function computes an embedding vector for the image and its description,
+        This method computes an embedding vector for the image and its description,
         then indexes this information along with other image metadata in OpenSearch.
+        It uses multimodal capabilities to create a combined embedding of the image and its textual description.
 
         Args:
             image (dict): A dictionary containing image metadata including:
-                - format: The image format (e.g., 'png', 'jpeg')
-                - filename: The name of the image file
-                - description: A textual description of the image
+                - format (str): The image format (e.g., 'png', 'jpeg')
+                - filename (str): The name of the image file
+                - description (str): A textual description of the image
+                - id (str): A unique identifier for the image
+            image_base64 (str): The base64-encoded string representation of the image
+
+        Raises:
+            Exception: If there's an error during the indexing process
+
+        Note:
+            This method assumes that the OpenSearch client is properly initialized and configured.
+            The index name is determined by the configuration (self.config.MULTIMODAL_INDEX_NAME).
                 - id: A unique identifier for the image
             image_base64 (str): The base64-encoded string representation of the image
 
@@ -130,14 +140,13 @@ class Utils:
         """
         Store an image in the file system and index it in the multimodal database.
 
-        This function takes a base64-encoded image, stores it in the file system,
+        This method takes a base64-encoded image, stores it in the file system,
         generates a description using a text model, and indexes it in the multimodal database.
 
         Args:
             image_format (str): The format of the image (e.g., 'png', 'jpeg').
             image_base64 (str): The base64-encoded string of the image.
             import_image_id (str, optional): An ID to use for importing an existing image. Defaults to ''.
-            output_queue (queue.Queue): A queue to put the image into.
 
         Returns:
             dict: A dictionary containing the image metadata if successful, None if there's an ID mismatch.
@@ -182,7 +191,7 @@ class Utils:
         """
         Invoke an AWS Lambda function and return its output.
 
-        This function invokes a specified AWS Lambda function with the given event data,
+        This method invokes a specified AWS Lambda function with the given event data,
         retrieves the response, and returns the decoded output.
 
         Args:
@@ -216,7 +225,7 @@ class Utils:
         """
         Retrieve image bytes from a source and optionally resize the image.
 
-        This function can handle both URL and local file path sources. It will
+        This method can handle both URL and local file path sources. It will
         resize the image if it exceeds the specified maximum size or dimension.
 
         Args:
@@ -315,7 +324,7 @@ class Utils:
         """
         Compute a SHA-256 hash for the given image bytes.
 
-        This function takes the raw bytes of an image and computes a unique
+        This method takes the raw bytes of an image and computes a unique
         hash value using the SHA-256 algorithm. This hash can be used as a
         unique identifier for the image content.
 
@@ -338,12 +347,20 @@ class Utils:
         """
         Generate a description for an image using the AI model.
 
+        This method uses an AI model to analyze the given image and generate a textual description.
+        The description can be either brief or detailed based on the 'detailed' parameter.
+
         Args:
-            image_bytes (bytes): The raw bytes of the image.
-            image_format (str): The format of the image (e.g., 'png', 'jpeg').
-            detailed (bool, optional): If True, generate a detailed description. Defaults to False.
+            image_bytes (bytes): The raw bytes of the image to be described.
+            image_format (str): The format of the image (e.g., 'png', 'jpeg', 'gif').
+            detailed (bool, optional): If True, generate a more comprehensive and detailed description.
+                                       If False, generate a brief description. Defaults to False.
+
         Returns:
-            str: A description of the image generated by the AI model.
+            str: A textual description of the image generated by the AI model.
+
+        Note:
+            The quality and accuracy of the description depend on the capabilities of the underlying AI model.
         """
         if detailed:
             prompt = self.config.DETAILED_IMAGE_DESCRIPTION_PROMPT
@@ -373,7 +390,7 @@ class Utils:
         """
         Retrieve image metadata from the multimodal index by its ID.
 
-        This function queries the OpenSearch index to fetch metadata for an image
+        This method queries the OpenSearch index to fetch metadata for an image
         with the specified ID. It can optionally return the image data as a base64-encoded string.
 
         Args:
@@ -417,7 +434,7 @@ class Utils:
         """
         Invoke the text model using Amazon Bedrock's converse API.
 
-        This function prepares the request body, handles retries for throttling exceptions,
+        This method prepares the request body, handles retries for throttling exceptions,
         and processes the response from the model.
 
         Args:
@@ -493,7 +510,7 @@ class Utils:
         """
         Add text content to the text index in OpenSearch.
 
-        This function processes the input text, splits it into chunks, computes embeddings,
+        This method processes the input text, splits it into chunks, computes embeddings,
         and indexes the documents in OpenSearch. It can optionally delete existing content
         based on metadata before indexing new content.
 

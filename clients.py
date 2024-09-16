@@ -9,7 +9,7 @@ def get_opensearch_client(opensearch_host: str, opensearch_port: int) -> OpenSea
     """
     Create and return an OpenSearch client.
 
-    This function creates an OpenSearch client with SSL/TLS enabled but hostname
+    This method creates an OpenSearch client with SSL/TLS enabled but hostname
     verification disabled. It uses the OPENSEARCH_PASSWORD environment variable
     for authentication.
 

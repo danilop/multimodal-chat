@@ -376,7 +376,7 @@ class Tools:
             print(f"Downloading and processing document: {url}")
                     
             try:
-                with urllib3.request.urlopen(url) as response:
+                with urllib.request.urlopen(url) as response:
                     content = response.read()
                 
                 if url_file_extension in ['.pdf']:
