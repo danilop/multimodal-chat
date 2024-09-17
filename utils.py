@@ -22,6 +22,7 @@ from pypdf import PdfReader
 from libs import between_xml_tag
 from config import Config
 from clients import Clients
+from usage import ModelUsage
 
 
 class ImageNotFoundError(Exception):
@@ -33,6 +34,7 @@ class Utils:
     def __init__(self, config: Config, clients: Clients):
         self.config = config
         self.clients = clients
+        self.usage = ModelUsage()
 
     def get_embedding(self, image_base64: str | None = None, input_text: str | None = None, multimodal: bool = False) -> list[float] | None:
         """
@@ -57,6 +59,7 @@ class Utils:
             to determine which model to use.
             - The bedrock_runtime_client is assumed to be a global or imported variable.
         """
+        use_multimodal = False
         body = {}
         if input_text is not None:
             body["inputText"] = input_text
@@ -66,6 +69,7 @@ class Utils:
 
         if multimodal or 'inputImage' in body:
             embedding_model_id = self.config.EMBEDDING_MULTIMODAL_MODEL_ID
+            use_multimodal = True
         elif 'inputText' in body:
             embedding_model_id = self.config.EMBEDDING_TEXT_MODEL_ID
         else:
@@ -78,11 +82,19 @@ class Utils:
         )
 
         response_body = json.loads(response.get('body').read())
-        finish_reason = response_body.get("message")
+        finish_reason = response_body.get('message')
         if finish_reason is not None:
             print(finish_reason)
             print(f"Body: {body}")
-        embedding_vector = response_body.get("embedding")
+        embedding_vector = response_body.get('embedding')
+
+        input_text_token_count = response_body.get('inputTextTokenCount')
+        if use_multimodal:
+            self.usage.update('inputMultimodalTokenCount', input_text_token_count)
+        else:
+            self.usage.update('inputTextTokenCount', input_text_token_count)
+        if 'inputImage' in body:
+            self.usage.update('inputImageCount', 1)
 
         return embedding_vector
 
@@ -495,9 +507,11 @@ class Utils:
                     print(error_message)
                     return error_message
 
-        token_usage = response['usage']
-        print(f"Input/Output/Total tokens: {token_usage['inputTokens']}/{token_usage['outputTokens']}/{token_usage['totalTokens']}")
         print(f"Stop reason: {response['stopReason']}")
+
+        for metrics, value in response['usage'].items():
+            self.usage.update(metrics, value)
+        print(self.usage)
 
         if return_last_message_only:
             response_message = response['output']['message']
@@ -506,7 +520,7 @@ class Utils:
 
         return response
 
-    def add_to_text_index(self, text: str, id: str, metadata: dict, metadata_delete: dict|None=None, big: bool=False) -> None:
+    def add_to_text_index(self, text: str, id: str, metadata: dict, metadata_delete: dict|None=None) -> None:
         """
         Add text content to the text index in OpenSearch.
 
@@ -562,14 +576,14 @@ class Utils:
             document = document | metadata
             return document
 
-        chunks = self.split_text_for_collection(text, big=big)
+        chunks = self.split_text_for_collection(text)
         print(f"Split into {len(chunks)} chunks")
 
         # Compute embeddings
         avg_chunk_length = sum(len(chunk) for chunk in chunks) / len(chunks)
         min_chunk_length = min(len(chunk) for chunk in chunks)
         max_chunk_length = max(len(chunk) for chunk in chunks)
-        print(f"Embedding {len(chunks)} chunks with min/average/max length {min_chunk_length}/{round(avg_chunk_length)}/{max_chunk_length} characters...")
+        print(f"Embedding {len(chunks)} chunks with min/average/max {min_chunk_length}/{round(avg_chunk_length)}/{max_chunk_length} characters...")
         documents = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.config.MAX_WORKERS) as executor:
             futures = [executor.submit(process_chunk, i + 1, chunk, metadata, id) for i, chunk in enumerate(chunks)]
@@ -587,7 +601,7 @@ class Utils:
         )
         print(f"Indexed {success} documents successfully, {len(failed)} documents failed.")
 
-    def split_text_for_collection(self, text: str, big: bool = False) -> list[str]:
+    def split_text_for_collection(self, text: str) -> list[str]:
         """
         Split the input text into chunks suitable for indexing or processing.
 
@@ -611,20 +625,13 @@ class Utils:
 
         sentences = re.split(r'\. |\n|[)}\]][^a-zA-Z0-9]*[({\[]', text)
 
-        if big:
-            max_chunk_length = self.config.BIG_MAX_CHUNK_LENGTH
-            min_chunk_length = self.config.BIG_MIN_CHUNK_LENGTH
-        else:
-            max_chunk_length = self.config.MAX_CHUNK_LENGTH
-            min_chunk_length = self.config.MIN_CHUNK_LENGTH
-
         chunk = ''
         next_chunk = ''
         for sentence in sentences:
             sentence = sentence.strip(' \n')
-            if len(chunk) < max_chunk_length:
+            if len(chunk) < self.config.MAX_CHUNK_LENGTH:
                 chunk += sentence + "\n"
-                if len(chunk) > min_chunk_length:
+                if len(chunk) > self.config.MIN_CHUNK_LENGTH:
                     next_chunk += sentence + "\n"
             else:
                 if len(chunk) > 0:
@@ -652,7 +659,6 @@ class Utils:
             image = self.get_image_by_id(image_id)
             if isinstance(image, dict):
                 filename = image["filename"]
-                print(f"Showing image: {filename}")
                 if for_output_file:
                     filename = os.path.relpath(os.path.join('..', filename))
                     # Using normal Markdown syntax
@@ -1226,5 +1232,7 @@ class Utils:
         )
 
         response_body = json.loads(response.get("body").read())
+
+        self.usage.update('images', 1)
 
         return response_body

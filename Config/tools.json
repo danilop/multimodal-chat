@@ -140,7 +140,7 @@
 	{
 		"toolSpec": {
 			"name": "wikipedia_page",
-			"description": "Get a Wikipedia page by title. The page content is stored in the archive. This is the preferred tool to get the full content of a Wikipedia page.",
+			"description": "Get a Wikipedia page by title. This is the preferred tool to get the full content of a Wikipedia page. The page content is stored in the archive. Pass keywords to retrieve specific information from the archive. Use links in the page to browse other pages or other web sites and get more information.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -148,10 +148,15 @@
 						"title": {
 							"type": "string",
 							"description": "The title of the Wikipedia page to get."
+						},
+						"keywords": {
+							"type": "string",
+							"description": "The keywords to retrieve information from the archive. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
 						}
 					},
 					"required": [
-						"title"
+						"title",
+						"keywords"
 					]
 				}
 			}
@@ -160,7 +165,7 @@
 	{
 		"toolSpec": {
 			"name": "browser",
-			"description": "Use this tool to browse and read carefully a web page on the internet. You can then browse the URL links in the response for more information. The web site content is stored in the archive so that you can retieve the information you need. This tool returns also all the links in the web page that you can then use to browse other pages or other web sites.",
+			"description": "Use this tool to browse and read carefully a web page on the internet. You can then browse the URL links in the response for more information. The web site content is stored in the archive so that you can retieve the information you need. Pass keywords to retrieve specific information from the archive. Use links in the page to browse other pages or other web sites and get more information.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -168,10 +173,15 @@
 						"url": {
 							"type": "string",
 							"description": "The HTTP(S) URL to browse. Use https://... when possible."
+						},
+						"keywords": {
+							"type": "string",
+							"description": "The keywords to retrieve information from the archive. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
 						}
 					},
 					"required": [
-						"url"
+						"url",
+						"keywords"
 					]
 				}
 			}

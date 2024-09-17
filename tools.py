@@ -171,7 +171,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Len: {len(output)}")
+        print(f"Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -200,7 +200,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Len: {len(output)}")
+        print(f"Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -233,7 +233,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Len: {len(output)}")
+        print(f"Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -263,7 +263,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f"Len: {len(output)}")
+        print(f"Length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
@@ -301,7 +301,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f"Len: {len(output)}")
+        print(f"Length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
@@ -321,28 +321,40 @@ class Tools:
             function to convert HTML to Markdown. It also uses add_to_text_index to store the content
             in the archive with appropriate metadata.
         """
-        search_title = tool_input["title"]
+        search_title = tool_input.get("title")
         print(f"Title: {search_title}")
+        keywords = tool_input.get("keywords")
+        print(f"Keywords: {keywords}")
         try:
             page = wikipedia.page(title=search_title, auto_suggest=False)
             page_text = mark_down_formatting(page.html(), page.url)
         except Exception as e:
             page_text = str(e)
         page_text = page_text.strip()
-        print(f"Len: {len(page_text)}")
+        print(f"Length: {len(page_text)}")
         current_date = datetime.now().strftime("%Y-%m-%d")
         metadata = {"wikipedia_page": search_title, "date": current_date}
         metadata_delete = {"wikipedia_page": search_title}
         self.utils.add_to_text_index(page_text, search_title, metadata, metadata_delete)
 
+        print("Retrieving summary based on page title...")
         summary = self.retrieve_from_archive(search_title, self.state)
-        print(f"Summary length: {len(summary)}")
-        
+
+        if keywords is not None and len(keywords) > 0:      
+            print("Retrieving documents based on keywords...")
+            retrieved_documents = self.retrieve_from_archive(keywords, self.state)
+        else:
+            retrieved_documents = ""
+
         output = f"""The full content of the page ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
         
+        if len(retrieved_documents) > 0:
+            output += f"""\n\These are the documents retrieved from the archive based on the keywords:
+            {between_xml_tag(retrieved_documents, 'documents')}"""
+
         print(f"Output length: {len(output)}")
 
         return output
@@ -365,8 +377,10 @@ class Tools:
             It also uses mark_down_formatting to convert HTML to Markdown and add_to_text_index
             to store the content in the archive with appropriate metadata.
         """
-        url = tool_input["url"]
+        url = tool_input.get("url")
         print(f"URL: {url}")
+        keywords = tool_input.get("keywords")
+        print(f"Keywords: {keywords}")
 
         parsed_url = urlparse(url)
         url_file_extension = os.path.splitext(parsed_url.path)[1].lower().lstrip('.')
@@ -414,14 +428,24 @@ class Tools:
         metadata_delete = {"url": url}  # To delete previous content from the same URL
         self.utils.add_to_text_index(page_text, url, metadata, metadata_delete)
         
+        print("Retrieving summary based on page title and URL...")
         summary = self.retrieve_from_archive(title + " - " + url, self.state)
-        print(f"Summary length: {len(summary)}")
-        
+
+        if keywords is not None and len(keywords) > 0:      
+            print("Retrieving documents based on keywords...")
+            retrieved_documents = self.retrieve_from_archive(keywords, self.state)
+        else:
+            retrieved_documents = ""
+
         output = f"""The full content of the URL ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
-            Here is a summary of the page:
+            This is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
-        
+
+        if len(retrieved_documents) > 0:
+            output += f"""\n\These are the documents retrieved from the archive based on the keywords:
+            {between_xml_tag(retrieved_documents, 'documents')}"""
+
         print(f"Output length: {len(output)}")
 
         return output
@@ -465,7 +489,7 @@ class Tools:
                 documents += between_xml_tag(json.dumps(source), "document", {"id": id}) + "\n"
                 state["archive"].add(id)
 
-        print(f"Len: {len(documents)}")
+        print(f"Length: {len(documents)}")
         return between_xml_tag(documents, "documents")
 
     def get_tool_result_retrive_from_archive(self, tool_input: dict) -> str:
@@ -994,7 +1018,7 @@ class Tools:
                 full_path = os.path.join(temp_dir, filename)
                 article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
 
-                print(f"Len: {len(article_text)}")
+                print(f"Length: {len(article_text)}")
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 metadata = {"arxiv": result.entry_id, "date": current_date}
                 metadata_delete = {"arxiv": result.entry_id}

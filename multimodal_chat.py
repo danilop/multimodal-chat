@@ -105,7 +105,7 @@ class MultimodalChat:
             fn=self.chat_function,
             type="messages",
             title="Yet Another Chatbot",
-            description="Your Helpful AI Assistant. I can search and browse the web, search Wikipedia, the news, and maps, run Python code that I write, write long articles, and generate and compare images.",
+            description="Your Helpful AI Assistant. I can search and browse the web, search Wikipedia, the news, and maps, run Python code that I write, write long articles, generate, download and compare images, access arXiv research papers, and transform content into an audio conversation.",
             chatbot=custom_chatbot,
             textbox=custom_textbox,
             multimodal=True,
@@ -331,7 +331,7 @@ class MultimodalChat:
                         else:
                             file_text = self.utils.process_non_pdf_documents(file)
                         file_message = between_xml_tag(file_text, 'file', {'filename': file_name_with_extension})
-                        self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension}, big=True)
+                        self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension})
                         message_content.append({ "text": file_message })
                         message_content.append({ "text": f"File '{file_name_with_extension}' has been imported into the archive." })
                     except Exception as ex:
@@ -429,6 +429,9 @@ class MultimodalChat:
                 pass
             case {'metadata': metadata}:
                 print(f"Metadata: {metadata}")
+                for metric, value in metadata['usage'].items():
+                    self.utils.usage.update(metric, value)
+                print(self.utils.usage)
             case {'contentBlockStart': content_block_start}:
                 match content_block_start['start']:
                     case {'toolUse': tool_use_start}:
