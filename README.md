@@ -138,6 +138,8 @@ To change password, you need to delete the container uisng `finch` or `docker` a
 
 ## Usage
 
+Default models for text, images, and embeddings are in the `Config/config.ini` file. The models to use are specified using [Amazon Bedrock model IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html) or [cross-region inference profile IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference-support.html). You need permissions and access to these models as described in [Access foundation models](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html).
+
 This section assumes OpenSearch is running locally in another terminal window as described before.
 
 1. Load the OpenSearch admin password into the environment:
