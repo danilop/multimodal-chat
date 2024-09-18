@@ -43,6 +43,9 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
    - Image Generation: Creates images based on text prompts
    - Image Catalog: Searches, compares, and manages images by description or image similarity
    - Image Downloader: Adds images from URLs to the catalog
+   - Random Images: Retrieves random images from the catalog
+   - Get Image by ID: Retrieves a specific image from the catalog using its ID
+   - Image Catalog Count: Returns the total number of images in the catalog
 
 6. **arXiv Integration**:
    - Search and download arXiv papers
@@ -54,12 +57,10 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 
 8. **File Management**:
    - Save text files to the output directory
+   - Save File: Allows saving text content to a file with a specified name in the output directory
 
 9. **Personal Improvement**:
    - Track suggestions and mistakes for future enhancements
-
-10. **Self-Improvement**:
-    - Personal Improvement Tracker: Tracks suggestions and mistakes for future enhancements
 
 For a comprehensive list of available tools and their usage, refer to `./Config/tools.json`.
 
@@ -125,6 +126,11 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
    ```
 
 4. Ensure OpenSearch (2 nodes + dashboard) starts correctly by checking the output
+
+5. To update OpenSearch, download the new container images using this script:
+   ```
+   ./opensearch_update.sh
+   ```
 
 For remote server setup, update the client creation code in the main script.
 

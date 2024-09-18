@@ -1,3 +1,3 @@
-CONTAINER_TOOL="finch" # Can be docker-compose
+COMPOSE_TOOL="finch compose" # Can be docker-compose
 source opensearch_env.sh
-${CONTAINER_TOOL} compose up
+${COMPOSE_TOOL} up

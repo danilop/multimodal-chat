@@ -13,8 +13,8 @@
     "Write a long multi-page article about computing Pi with numerical methods in Python.",
     "Can you run and test all code snippets? And add their outputs to the article?",
     "Generate an image for the article's cover.",
-    "You're a ML expert. Write a five-page article explaining multimodal embeddings and how they are trained to an audience of software engineers with no ML experience. Look for recent (2022-2024) articles and info on the topic. Start with the index and then write all sections. Add visualizations. Review the article from the perspective of a technical editor.",
-    "Write a multi-page article about testing non-deterministic software. Look for established best practices and recent innovations, including research papers. First, focus on the general problem. Then, dive deep into integrating LLMs into an application. Add images, charts, and diagrams to better explain those concepts.",
+    "You're a ML expert. Write a five-page article explaining multimodal embeddings and how they are trained to an audience of software engineers with no ML experience. Look for recent (2024) articles and info on the topic. Start with the index and then write all sections. Add visualizations. Review the article from the perspective of a technical editor.",
+    "Write a multi-page article about testing non-deterministic software. Look for established best practices and recent (2024) innovations, including research papers. First, focus on the general problem. Then, dive deep into integrating LLMs into an application. Add images, charts, and diagrams to better explain those concepts. Include practical examples in Python.",
     "Read the latest AWS news from the AWS News Blog and the \"What's new with AWS\" page, group them by category (compute, storage, networking, databases, security, etc.), and put them in an audio conversation.",
     "Read the history of how Rome was founded from Wikipedia and put it in an audio conversation.",
     "Tell a joke in an audio conversation."

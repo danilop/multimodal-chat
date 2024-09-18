@@ -2,7 +2,7 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
+			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn</modules> You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
 			"inputSchema": {
 				"json": {
 					"type": "object",

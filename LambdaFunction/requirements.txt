@@ -7,3 +7,5 @@ matplotlib
 networkx
 yfinance
 qrcode
+scikit-learn
+umap-learn

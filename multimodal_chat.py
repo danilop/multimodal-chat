@@ -603,7 +603,12 @@ class MultimodalChat:
             It handles both text and file inputs, and can display generated images in the response.
         """
         def format_response(response):
-            response = self.utils.process_image_placeholders(response)
+            try:
+                response = self.utils.process_image_placeholders(response)
+            except Exception as e:
+                error_message = f"Error processing image placeholders: {e}"
+                print(error_message)
+                return error_message
             response = self.utils.remove_specific_xml_tags(response)
             response = self.utils.replace_specific_xml_tags(response)
             return response
