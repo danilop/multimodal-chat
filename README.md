@@ -16,6 +16,40 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 - Save files to the output directory
 - Track personal improvements
 
+## Examples
+
+Here are examples of how to use various tools:
+
+1. **Web Search**:
+   "Search the web for recent advancements in quantum computing."
+
+2. **Wikipedia**:
+   "Find Wikipedia articles about the history of artificial intelligence."
+
+3. **Python Scripting**:
+   "Create a Python script to generate a bar chart of global CO2 emissions by country."
+
+4. **Sketchbook**:
+   "Start a new sketchbook and write an introduction about how to comput Pi with numerical methods."
+
+5. **Image Generation**:
+   "Generate an image of a futuristic city with flying cars and tall skyscrapers."
+
+6. **Image Search**:
+   "Search the image catalog for pictures of endangered species."
+
+7. **arXiv Integration**:
+   "Search for recent research papers on deep learning in natural language processing."
+
+8. **Conversation Generation**:
+   "Create a conversation between three experts discussing how to setup multimodal RAG."
+
+9. **File Management**:
+   "Save a summary of our discussion about climate change to a file named 'climate_change_summary.txt'."
+
+10. **Personal Improvement**:
+    "Here's a suggestion to improve: to improve answers, search for official sources."
+
 ## Key Features and Tools
 
 1. **Web Interaction**:
@@ -158,40 +192,6 @@ This section assumes OpenSearch is running locally in another terminal window as
    ```
 
 4. Open a web browser and navigate to http://127.0.0.1:7860/ to start chatting.
-
-## Examples
-
-Here are examples of how to use various tools:
-
-1. **Web Search**:
-   "Search the web for recent advancements in quantum computing."
-
-2. **Wikipedia**:
-   "Find Wikipedia articles about the history of artificial intelligence."
-
-3. **Python Scripting**:
-   "Create a Python script to generate a bar chart of global CO2 emissions by country."
-
-4. **Sketchbook**:
-   "Start a new sketchbook and write an introduction about the impact of AI on healthcare."
-
-5. **Image Generation**:
-   "Generate an image of a futuristic city with flying cars and tall skyscrapers."
-
-6. **Image Search**:
-   "Search the image catalog for pictures of endangered species."
-
-7. **arXiv Integration**:
-   "Search for recent research papers on deep learning in natural language processing."
-
-8. **Conversation Generation**:
-   "Create a conversation between three experts discussing the ethical implications of AI."
-
-9. **File Management**:
-   "Save a summary of our discussion about climate change to a file named 'climate_change_summary.txt'."
-
-10. **Personal Improvement**:
-    "Here's a suggestion to improve: to improve answers, search for official sources."
 
 ## Demo videos
 
