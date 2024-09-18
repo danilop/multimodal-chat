@@ -9,11 +9,16 @@
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. Your code can run of up to 30 seconds. Keep the running time as low as possible. It's better to run multiple fast scripts thaty one that requires more time. Keep the code simple and short and avoid using complex libraries. Don't repeat code and don't repeat yourself (DRY)."
+							"description": "The Python script to run. Your code can run of up to 30 seconds. Keep the running time as low as possible. It's better to run multiple fast scripts thaty one that requires more time. Keep the code simple and short and avoid using complex libraries. Don't repeat code and don't repeat yourself (DRY). To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact syntax: Show image '<path/filename>'"
+						},
+						"number_of_images": {
+							"type": "integer",
+							"description": "The number of images expected in output from this script. If the number of shown images in the script is different from this number, an error is raised."
 						}
 					},
 					"required": [
-						"script"
+						"script",
+						"number_of_images"
 					]
 				}
 			}
@@ -230,18 +235,18 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in pages that you can add, review, update, or delete sequentially, one at a time. Separate topics in different pages. When you start a new sketchbook, the previous one is deleted. You can add a page at the end, ask for info (the number of pages, words, and characters in the sketchbook), start a review, update the current page, or delete the current page. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it with the user. The user cannot see the sketchbook before you share it.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it with the user. The user cannot see the sketchbook before you share it.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the sketchbook, can be 'start_new', 'add_page_at_the_end', 'info', 'start_review', 'next_page', 'update_current_page', 'delete_current_page', 'share_sketchbook', or 'save_sketchbook_file'."
+							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', 'share_sketchbook', or 'save_sketchbook_file'."
 						},
 						"content": {
 							"type": "string",
-							"description": "The content to update the latest read page or to add a new page at the end. Use Markdown to format content. Do not add triple dots (...) or 'to be continued' between pages. Each page can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
+							"description": "The content to update the latest read section or to add a new section at the end. Use Markdown to format content. Don't use unicode characters. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
 						}
 					},
 					"required": [

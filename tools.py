@@ -112,6 +112,9 @@ class Tools:
         """
         input_script = tool_input["script"]
         print(f"Script:\n{input_script}")
+        number_of_images = int(tool_input.get("number_of_images"))
+        print(f"Number of images: {number_of_images}")
+
         start_time = time.time()
         event = {"input_script": input_script}
 
@@ -123,13 +126,20 @@ class Tools:
         end_time = time.time()
         elapsed_time = end_time - start_time
         len_output = len(output)
+
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
         print(f"Elapsed time: {elapsed_time:.2f} seconds")
+
         if len_output == 0:
-            warning_message = "No output printed."
-            print(warning_message)
-            return warning_message
+            error_message = "Error: No output printed."
+            print(error_message)
+            return error_message
+        if len(images) != number_of_images:
+            error_message = f"Error: {len(images)} correctly shown but {number_of_images} were expected."
+            print(error_message)
+            return error_message
+
         if len_output > self.config.MAX_OUTPUT_LENGTH:
             output = output[:self.config.MAX_OUTPUT_LENGTH] + "\n... (truncated)"
         print(f"Output:\n---\n{output}\n---.")
@@ -352,7 +362,7 @@ class Tools:
             {between_xml_tag(summary, 'summary')}"""
         
         if len(retrieved_documents) > 0:
-            output += f"""\n\These are the documents retrieved from the archive based on the keywords:
+            output += f"""\n\nThese are the documents retrieved from the archive based on the keywords:
             {between_xml_tag(retrieved_documents, 'documents')}"""
 
         print(f"Output length: {len(output)}")
@@ -443,7 +453,7 @@ class Tools:
             {between_xml_tag(summary, 'summary')}"""
 
         if len(retrieved_documents) > 0:
-            output += f"""\n\These are the documents retrieved from the archive based on the keywords:
+            output += f"""\n\nThese are the documents retrieved from the archive based on the keywords:
             {between_xml_tag(retrieved_documents, 'documents')}"""
 
         print(f"Output length: {len(output)}")
@@ -547,18 +557,18 @@ class Tools:
         """
         Render a sketchbook as a single string, optionally using a new path for images.
 
-        This function takes a list of strings representing sketchbook pages and combines them
-        into a single string, with each page separated by double newlines. It also removes
+        This function takes a list of strings representing sketchbook sections and combines them
+        into a single string, with each section separated by double newlines. It also removes
         any instances of three or more consecutive newlines, replacing them with double newlines.
 
         Args:
-            sketchbook (list[str]): A list of strings, each representing a page in the sketchbook.
+            sketchbook (list[str]): A list of strings, each representing a section in the sketchbook.
 
         Returns:
-            str: A single string containing all sketchbook pages, properly formatted.
+            str: A single string containing all sketchbook sections, properly formatted.
         """
         
-        processed_sketchbook = [self.utils.process_image_placeholders(page, for_output_file=True) for page in sketchbook]
+        processed_sketchbook = [self.utils.process_image_placeholders(section, for_output_file=True) for section in sketchbook]
 
         rendered_sketchbook = "\n\n".join(processed_sketchbook)
         rendered_sketchbook = "\n" + re.sub(r'\n{3,}', '\n\n', rendered_sketchbook) + "\n"
@@ -569,7 +579,7 @@ class Tools:
         Process a sketchbook command and update the sketchbook state accordingly.
 
         This function handles various sketchbook operations such as starting a new sketchbook,
-        adding pages, reviewing pages, updating pages, and sharing the sketchbook.
+        adding sections, reviewing sections, updating sections, and sharing the sketchbook.
 
         Args:
             tool_input (dict): A dictionary containing the command and optional content.
@@ -579,17 +589,17 @@ class Tools:
 
         Commands:
             - start_new: Initializes a new empty sketchbook.
-            - add_page: Adds a new page to the sketchbook.
-            - start_review: Begins a review of the sketchbook from the first page.
-            - next_page: Moves to the next page during review.
-            - update_page: Updates the content of the current page.
+            - add_section: Adds a new section to the sketchbook.
+            - start_review: Begins a review of the sketchbook from the first section.
+            - next_section: Moves to the next section during review.
+            - update_section: Updates the content of the current section.
             - share_sketchbook: Shares the entire sketchbook content.
             - save_sketchbook_file: Saves the sketchbook to a file.
-            - info: Provides information about the sketchbook and current page.
+            - info: Provides information about the sketchbook and current section.
 
         Note:
             This function uses the utils.render_sketchbook method to render the sketchbook.
-            It also keeps track of the sketchbook pages in the state.
+            It also keeps track of the sketchbook sections in the state.
         """
         command = tool_input.get("command")
         content = tool_input.get("content", "")
@@ -597,68 +607,68 @@ class Tools:
         if len(content) > 0:
             print(f"Content:\n---\n{content}\n---")
 
-        num_pages = len(self.state["sketchbook"])
+        num_sections = len(self.state["sketchbook"])
 
         match command:
             case "start_new":
                 self.state["sketchbook"] = []
-                self.state["sketchbook_current_page"] = 0
-                return "This is a new sketchbook. There are no pages. Start by adding some content."
-            case "add_page_at_the_end":
+                self.state["sketchbook_current_section"] = 0
+                return "This is a new sketchbook. There are no sections. Start by adding some content."
+            case "add_section_at_the_end":
                 if len(content) == 0:
-                    return "You need to provide content to add a new page."
+                    return "You need to provide content to add a new section."
                 try:
                     self.utils.process_image_placeholders(content)
                 except Exception as e:
-                    error_message = f"Page not added. Error: {e}"
+                    error_message = f"Section not added. Error: {e}"
                     print(error_message)
                     return error_message
                 self.state["sketchbook"].append(content)
-                num_pages = len(self.state["sketchbook"])
-                self.state["sketchbook_current_page"] = num_pages - 1
-                return f"New page added at the end. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. Add more pages, start a review, or share the sketchbook with the user."
+                num_sections = len(self.state["sketchbook"])
+                self.state["sketchbook_current_section"] = num_sections - 1
+                return f"New section added at the end. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Add more sections, start a review, or share the sketchbook with the user."
             case "start_review":
-                if num_pages == 0:
-                    return "The sketchbook is empty. There are no pages to review or update. Start by adding some content."
-                self.state["sketchbook_current_page"] = 0
-                page_content = self.state["sketchbook"][0]
-                page_content_between_xml_tag = between_xml_tag(page_content, "page")
-                return f"You're starting your review at page 1 of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
-            case "next_page":
-                if self.state["sketchbook_current_page"] >= num_pages - 1:
-                    return f"You're at the end. You're at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. Start a review or share the sketchbook with the user."
-                self.state["sketchbook_current_page"] += 1
-                page_content = self.state["sketchbook"][self.state["sketchbook_current_page"]]
-                page_content_between_xml_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
-                return f"Moving to the next page. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
-            case "update_current_page":
-                if num_pages == 0:
-                    return "The sketchbook is empty. There are no pages. Start by adding some content."
+                if num_sections == 0:
+                    return "The sketchbook is empty. There are no sections to review or update. Start by adding some content."
+                self.state["sketchbook_current_section"] = 0
+                section_content = self.state["sketchbook"][0]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section")
+                return f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
+            case "next_section":
+                if self.state["sketchbook_current_section"] >= num_sections - 1:
+                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Start a review or share the sketchbook with the user."
+                self.state["sketchbook_current_section"] += 1
+                section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
+                return f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
+            case "update_current_section":
+                if num_sections == 0:
+                    return "The sketchbook is empty. There are no sections. Start by adding some content."
                 if len(content) == 0:
-                    return "You need to provide content to update the current page."
+                    return "You need to provide content to update the current section."
                 try:
                     self.utils.process_image_placeholders(content)
                 except Exception as e:
-                    error_message = f"Page not updated. Error: {e}"
+                    error_message = f"Section not updated. Error: {e}"
                     print(error_message)
                     return error_message
-                self.state["sketchbook"][self.state["sketchbook_current_page"]] = content
-                return f"The current page has been updated with the new content."
-            case "delete_current_page":
-                if num_pages == 0:
-                    return "The sketchbook is empty. There are no pages to delete."
-                self.state["sketchbook"].pop(self.state["sketchbook_current_page"])
-                num_pages = len(self.state["sketchbook"])
-                if num_pages == 0:
-                    return "The page has been deleted. The sketchbook is now empty."
-                if self.state["sketchbook_current_page"] >= num_pages - 1:
-                    self.state["sketchbook_current_page"] -= 1
-                page_content = self.state["sketchbook"][self.state["sketchbook_current_page"]]
-                page_content_between_xml_tag = between_xml_tag(page_content, "page", {"id": self.state["sketchbook_current_page"]})
-                return f"The page has been deleted. You're now at page {self.state['sketchbook_current_page'] + 1} of {num_pages}. This is the content of the current page:\n\n{page_content_between_xml_tag}\n\nUpdate the content of this page, delete the page, or go to the next page. The review is completed when you reach the end."
+                self.state["sketchbook"][self.state["sketchbook_current_section"]] = content
+                return f"The current section has been updated with the new content."
+            case "delete_current_section":
+                if num_sections == 0:
+                    return "The sketchbook is empty. There are no sections to delete."
+                self.state["sketchbook"].pop(self.state["sketchbook_current_section"])
+                num_sections = len(self.state["sketchbook"])
+                if num_sections == 0:
+                    return "The section has been deleted. The sketchbook is now empty."
+                if self.state["sketchbook_current_section"] >= num_sections - 1:
+                    self.state["sketchbook_current_section"] -= 1
+                section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
+                return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
             case "share_sketchbook" | "save_sketchbook_file":
-                if num_pages == 0:
-                    return "The sketchbook is empty. There are no pages to share or save."
+                if num_sections == 0:
+                    return "The sketchbook is empty. There are no sections to share or save."
                 print("Sharing the sketchbook...")
                 current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
                 sketchbook_filename_without_extension = f"sketchbook_{current_datetime}"
@@ -682,7 +692,7 @@ class Tools:
                         error_message = f"Error: {e}"
                         print(error_message)
                         return error_message
-                return f"The sketchbook ({num_pages} pages) has been saved as {sketchbook_filename_without_extension}."
+                return f"The sketchbook ({num_sections} sections) has been saved as {sketchbook_filename_without_extension}."
             case _:
                 return "Invalid command."
 
