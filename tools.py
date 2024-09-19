@@ -405,8 +405,10 @@ class Tools:
                 
                 if url_file_extension in ['.pdf']:
                     page_text = self.utils.process_pdf_document(content)
+                elif url_file_extension in ['.pptx']:
+                    page_text = self.utils.process_pptx_document(content)
                 else:
-                    page_text = self.utils.process_non_pdf_documents(content)
+                    page_text = self.utils.process_other_document_formats(content)
             except Exception as e:
                 return f"Error downloading or processing the document: {str(e)}"
 

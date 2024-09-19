@@ -325,11 +325,13 @@ class MultimodalChat:
                     try:
                         if extension == 'pdf':
                             file_text = self.utils.process_pdf_document(file)
+                        elif extension == 'pptx':
+                            file_text = self.utils.process_pptx_document(file)
                         elif self.utils.is_text_file(file):
                                 with open(file, 'r', encoding='utf-8') as f:
                                     file_text = f.read()
                         else:
-                            file_text = self.utils.process_non_pdf_documents(file)
+                            file_text = self.utils.process_other_document_formats(file)
                         file_message = between_xml_tag(file_text, 'file', {'filename': file_name_with_extension})
                         self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension})
                         message_content.append({ "text": file_message })

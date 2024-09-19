@@ -18,6 +18,7 @@ from opensearchpy import NotFoundError
 from opensearchpy.helpers import bulk
 import pypandoc
 from pypdf import PdfReader
+import pptx
 
 from libs import between_xml_tag
 from config import Config
@@ -744,7 +745,6 @@ class Utils:
 
         Args:
             file (str): The path to the PDF file to be processed.
-            output_queue (queue.Queue): A queue to put the output into.
 
         Returns:
             str: The text content of the PDF file.
@@ -772,7 +772,72 @@ class Utils:
             text_pages.append(between_xml_tag(text, 'page', {'id': index}))
         return "\n".join(text_pages)
 
-    def process_non_pdf_documents(self, file: str) -> str:
+    def process_pptx_document(self, file: str) -> str:
+        """
+        Process a PowerPoint document and extract text and images.
+
+        This function uses the python-pptx library to extract text from a PowerPoint file.
+        It also processes images within the PowerPoint presentation and stores them in the image catalog when HANDLE_IMAGES_IN_DOCUMENTS is True.
+
+        Args:
+            file (str): The path to the PowerPoint file to be processed.
+
+        Returns:
+            str: The text content of the PowerPoint file.
+        """
+
+        def extract_text_from_shape(shape):
+            if shape.has_text_frame:
+                text = shape.text
+                if shape.is_placeholder:
+                    ph_type = type(shape.placeholder_format.type)
+                    text = between_xml_tag(text, 'placeholder', { 'type': ph_type.__name__ })
+                return text
+            elif shape.shape_type == pptx.enum.shapes.MSO_SHAPE_TYPE.GROUP:
+                return " ".join([extract_text_from_shape(subshape) for subshape in shape.shapes])
+            elif shape.shape_type == pptx.enum.shapes.MSO_SHAPE_TYPE.TABLE:
+                return "\n".join([cell.text for row in shape.table.rows for cell in row.cells])
+            return ""
+
+        presentation = pptx.Presentation(file)
+        extracted_text = []
+
+        for slide_number, slide in enumerate(presentation.slides, start=1):
+            slide_content = [f"Slide {slide_number}:"]
+            
+            # Extract text from shapes
+            for shape in slide.shapes:
+                text = extract_text_from_shape(shape)
+                if text:
+                    slide_content.append(text)
+            
+            # Extract notes
+            if slide.has_notes_slide:
+                notes_text = slide.notes_slide.notes_text_frame.text
+                if notes_text:
+                    slide_content.append(f"Notes: {notes_text}")
+            
+            # Extract image and chart information
+            for shape in slide.shapes:
+                if shape.shape_type == pptx.enum.shapes.MSO_SHAPE_TYPE.PICTURE:
+                    slide_content.append(f"[Image: {shape.name}]")
+                    if self.config.HANDLE_IMAGES_IN_DOCUMENTS:
+                        image = shape.image
+                        content_type = image.content_type
+                        format = content_type.split('/')[1].lower() # No need to fix jpeg
+                        if format in self.config.IMAGE_FORMATS:
+                            image_base64 = self.get_image_base64(image.blob, format=format, max_image_size=self.config.MAX_CHAT_IMAGE_SIZE, max_image_dimension=self.config.MAX_CHAT_IMAGE_DIMENSIONS)
+                            image = self.store_image(format, image_base64)
+                elif shape.shape_type == pptx.enum.shapes.MSO_SHAPE_TYPE.CHART:
+                    slide_content.append(f"[Chart: {shape.chart.chart_type}]")
+            
+            slide_text = between_xml_tag("\n".join(slide_content), 'slide', { 'slide_number': slide_number })
+
+            extracted_text.append(slide_text)
+        
+        return "\n\n".join(between_xml_tag(extracted_text, 'presentation', { 'file': file }))
+
+    def process_other_document_formats(self, file: str) -> str:
         """
         Process a non-PDF document and extract text and images.
 
