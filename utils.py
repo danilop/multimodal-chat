@@ -437,7 +437,9 @@ class Utils:
                 image['base64'] = self.get_image_base64(image['filename'], format=image['format'])
             return image
         except NotFoundError:
-            return "Not found."
+            error_message = "Image not found."
+            print(error_message)
+            return error_message
         except Exception as ex:
             error_message = f"Error: {ex}"
             print(error_message)
@@ -662,16 +664,16 @@ class Utils:
                 filename = image["filename"]
                 if for_output_file:
                     filename = os.path.relpath(os.path.join('..', filename))
-                    # Using normal Markdown syntax
+                    # Using Markdown syntax with filename
                     return f'![{escape(image["description"])}]({filename})'
-                # Using Gradio syntax with "file="
+                # Using Gradio syntax with "file=filename"
                 return f'![{escape(image["description"])}](file={filename})'
             else:
                 error_message = f"Image with 'image_id' {image_id} not found in the image catalog."
                 print(error_message)
                 raise ImageNotFoundError(error_message)
 
-        return re.sub(r'\[image_id:\s*(\w+)\]', replace_image, text)
+        return re.sub(r'\[image_id:\s*([^\s\]]+)\s*\]', replace_image, text)
 
     def get_file_name_and_extension(self, full_file_name: str) -> tuple[str, str]:
         """

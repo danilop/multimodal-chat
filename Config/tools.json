@@ -2,14 +2,14 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that has been passed to you by a user. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn</modules> You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
+			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn</modules> You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. Your code can run of up to 30 seconds. Keep the running time as low as possible. It's better to run multiple fast scripts thaty one that requires more time. Keep the code simple and short and avoid using complex libraries. Don't repeat code and don't repeat yourself (DRY). To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact syntax: Show image '<path/filename>'"
+							"description": "The Python script to run. It can run for up to 30 seconds. Keep it simple. Keep the running time as low as possible. It's better to run multiple small scripts thaty one that requires more time. Keep the code simple and short and avoid using complex libraries. Don't repeat code and don't repeat yourself (DRY). To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact syntax: Show image '<path/filename>'"
 						},
 						"number_of_images": {
 							"type": "integer",
@@ -235,7 +235,7 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it with the user. The user cannot see the sketchbook before you share it.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it with me. I cannot see the sketchbook before you share it.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -246,7 +246,31 @@
 						},
 						"content": {
 							"type": "string",
-							"description": "The content to update the latest read section or to add a new section at the end. Use Markdown to format content. Don't use unicode characters. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
+							"description": "The content to update the latest read section or to add a new section at the end. Use Markdown to format content. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
+						}
+					},
+					"required": [
+						"command"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "checklist",
+			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"command": {
+							"type": "string",
+							"description": "How to use the checklist, can be 'start_new', 'add_item_at_the_end', 'show_items', 'mark_next_to_do_item_as_completed'."
+						},
+						"content": {
+							"type": "string",
+							"description": "The content for a new checklist item."
 						}
 					},
 					"required": [
@@ -259,7 +283,7 @@
 	{
 		"toolSpec": {
 			"name": "generate_image",
-			"description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Do not use this tool when asked to show, search, or find an image. Generate an image only if the user explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to the user.",
+			"description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Do not use this tool when asked to show, search, or find an image. Generate an image only if I explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to me.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -426,7 +450,7 @@
 	{
 		"toolSpec": {
 			"name": "arxiv",
-			"description": "Use this tool to search and automatically download scientific papers from arXiv. This is the preferred way to download academic papers. The articles found by this tool are stored in the archive, and you must then retrieve the information you need from the archive.",
+			"description": "Use this tool to search and automatically download scientific research articles from arXiv. This is the preferred way to download academic papers. The articles found by this tool are stored in the archive, and you must then retrieve the information you need from the archive.",
 			"inputSchema": {
 				"json": {
 					"type": "object",

@@ -15,6 +15,7 @@ Yet Another Chatbot is a sophisticated multimodal chat interface powered by adva
 - Generate and save conversations as text and audio files
 - Save files to the output directory
 - Track personal improvements
+- Manage checklists for task tracking
 
 ## Examples
 
@@ -30,7 +31,7 @@ Here are examples of how to use various tools:
    "Create a Python script to generate a bar chart of global CO2 emissions by country."
 
 4. **Sketchbook**:
-   "Start a new sketchbook and write an introduction about how to comput Pi with numerical methods."
+   "Start a new sketchbook and write an introduction about how to compute Pi with numerical methods."
 
 5. **Image Generation**:
    "Generate an image of a futuristic city with flying cars and tall skyscrapers."
@@ -42,7 +43,7 @@ Here are examples of how to use various tools:
    "Search for recent research papers on deep learning in natural language processing."
 
 8. **Conversation Generation**:
-   "Create a conversation between three experts discussing how to setup multimodal RAG."
+   "Create a conversation between three experts discussing how to set up multimodal RAG."
 
 9. **File Management**:
    "Save a summary of our discussion about climate change to a file named 'climate_change_summary.txt'."
@@ -50,16 +51,21 @@ Here are examples of how to use various tools:
 10. **Personal Improvement**:
     "Here's a suggestion to improve: to improve answers, search for official sources."
 
+11. **Checklist**:
+    "Start a new checklist for a project on implementing a machine learning model."
+
 ## Key Features and Tools
 
 1. **Web Interaction**:
-   - DuckDuckGo Search: Performs web, news, and map searches
+   - DuckDuckGo Text Search: Performs web searches
+   - DuckDuckGo News Search: Searches for recent news articles
+   - DuckDuckGo Maps Search: Searches for locations and businesses
    - Web Browser: Browses websites and retrieves their content
 
 2. **Wikipedia Tools**:
-   - Search: Finds relevant Wikipedia pages
-   - Geodata Search: Locates Wikipedia articles by geographic location
-   - Page Retriever: Fetches full Wikipedia page content
+   - Wikipedia Search: Finds relevant Wikipedia pages
+   - Wikipedia Geodata Search: Locates Wikipedia articles by geographic location
+   - Wikipedia Page Retriever: Fetches full Wikipedia page content
 
 3. **Python Scripting**:
    - Runs Python scripts for computations, testing, and output generation, including text and images
@@ -70,16 +76,16 @@ Here are examples of how to use various tools:
    - Personal Archive: Stores and retrieves text, Markdown, or HTML content, using a semantic database
    - Sketchbook: Manages a multi-page sketchbook for writing and reviewing long-form content. Supports multiple output formats:
      - Markdown (.md): For easy reading and editing
-     - HTML (.html): For web-based viewing
-     - PDF (.pdf): For professional document sharing
+     - Word Document (.docx): For document editing
 
 5. **Image Handling**:
    - Image Generation: Creates images based on text prompts
-   - Image Catalog: Searches, compares, and manages images by description or image similarity
-   - Image Downloader: Adds images from URLs to the catalog
+   - Image Catalog Search: Searches images by description
+   - Image Similarity Search: Finds similar images based on a reference image
    - Random Images: Retrieves random images from the catalog
    - Get Image by ID: Retrieves a specific image from the catalog using its ID
    - Image Catalog Count: Returns the total number of images in the catalog
+   - Download Image: Adds images from URLs to the catalog
 
 6. **arXiv Integration**:
    - Search and download arXiv papers
@@ -90,11 +96,13 @@ Here are examples of how to use various tools:
    - Generate audio files for the conversation using text-to-speech
 
 8. **File Management**:
-   - Save text files to the output directory
    - Save File: Allows saving text content to a file with a specified name in the output directory
 
 9. **Personal Improvement**:
    - Track suggestions and mistakes for future enhancements
+
+10. **Checklist**:
+    - Manage task lists with the ability to add items, mark them as completed, and review progress
 
 For a comprehensive list of available tools and their usage, refer to `./Config/tools.json`.
 

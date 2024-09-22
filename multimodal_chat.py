@@ -20,7 +20,6 @@ from gradio.components.multimodal_textbox import MultimodalData
 
 from rich import print
 
-
 # Fix for "Error: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead."
 # No other need to import numpy than for this fix
 import numpy as np
@@ -49,6 +48,7 @@ class MultimodalChat:
         self.state = {
             "sketchbook": [],
             "sketchbook_current_page": 0,
+            "checklist": [],
             "archive": set(),
             "improvements": ""
         }
@@ -423,21 +423,39 @@ class MultimodalChat:
                     messages.append(follow_up_message)
 
     def process_streaming_chunk(self, chunk: dict, messages: list[dict], stream_state: dict) -> None:
+        """
+        Process a chunk of streaming data from the AI model.
+
+        This function processes a chunk of streaming data from the AI model, updating the conversation history
+        and handling different types of content blocks such as message start, message stop, metadata, and content blocks.
+
+        Args:
+            chunk (dict): A chunk of streaming data from the AI model.
+            messages (list): A list of message dictionaries representing the conversation history.
+            stream_state (dict): A dictionary to store the state of the streaming process.
+
+        Returns:
+            None
+
+        Note:
+            This function handles different types of content blocks and updates the conversation history
+            accordingly. It also handles tool usage and updates the usage metrics.
+        """
         match chunk:
             case {'messageStart': message_start}:
                 stream_state['tool_use_block'] = None
                 stream_state['new_content'] = ''
             case {'messageStop': message_stop}:
-                pass
+                messages.append(stream_state['new_message'])
             case {'metadata': metadata}:
-                print(f"Metadata: {metadata}")
                 for metric, value in metadata['usage'].items():
                     self.utils.usage.update(metric, value)
                 print(self.utils.usage)
             case {'contentBlockStart': content_block_start}:
                 match content_block_start['start']:
                     case {'toolUse': tool_use_start}:
-                        print(f"ToolUse: {tool_use_start}")
+                        tool_name = tool_use_start.get('name', 'tool name missing')
+                        print(f"Using tool {tool_name}...")
                         stream_state['tool_use_block'] = tool_use_start
                         stream_state['tool_use_block']['input'] = ''
                     case _:
@@ -452,7 +470,7 @@ class MultimodalChat:
                     case _:
                         print(f"Unknown delta: {chunk}")
             case {'contentBlockStop': content_block_stop}:
-                if len(stream_state['new_content']) > 0:
+                if len(stream_state['new_content'].strip().strip(' \n')) > 0:
                     stream_state['new_message'] = {
                         "role": "assistant",
                         "content": [ { "text": stream_state['new_content'] } ],
@@ -465,8 +483,9 @@ class MultimodalChat:
                     }
                 if stream_state['tool_use_block']:
                     try:
-                        # Fix the input to be a dictionary
+                        # Load the tool input JSON string to a dictionary
                         stream_state['tool_use_block']['input'] = json.loads(stream_state['tool_use_block']['input'])
+                        
                         stream_state['new_message']['content'].append( { "toolUse": stream_state['tool_use_block'].copy() } )
 
                         tool_result_value = self.tools.get_tool_result(stream_state['tool_use_block'])
@@ -492,7 +511,6 @@ class MultimodalChat:
                         })
 
                     finally:
-                        messages.append(stream_state['new_message'])
                         stream_state['tool_use_block'] = None
 
             case _:

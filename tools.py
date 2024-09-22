@@ -76,6 +76,7 @@ class Tools:
             'retrive_from_archive': self.get_tool_result_retrive_from_archive,
             'store_in_archive': self.get_tool_result_store_in_archive,
             'sketchbook': self.get_tool_result_sketchbook,
+            'checklist': self.get_tool_result_checklist,
             'generate_image': self.get_tool_result_generate_image,
             'search_image_catalog': self.get_tool_result_search_image_catalog,
             'similarity_image_catalog': self.get_tool_result_similarity_image_catalog,
@@ -112,9 +113,6 @@ class Tools:
         """
         input_script = tool_input["script"]
         print(f"Script:\n{input_script}")
-        number_of_images = int(tool_input.get("number_of_images"))
-        print(f"Number of images: {number_of_images}")
-
         start_time = time.time()
         event = {"input_script": input_script}
 
@@ -126,20 +124,13 @@ class Tools:
         end_time = time.time()
         elapsed_time = end_time - start_time
         len_output = len(output)
-
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
         print(f"Elapsed time: {elapsed_time:.2f} seconds")
-
         if len_output == 0:
-            error_message = "Error: No output printed."
-            print(error_message)
-            return error_message
-        if len(images) != number_of_images:
-            error_message = f"Error: {len(images)} correctly shown but {number_of_images} were expected."
-            print(error_message)
-            return error_message
-
+            warning_message = "No output printed."
+            print(warning_message)
+            return warning_message
         if len_output > self.config.MAX_OUTPUT_LENGTH:
             output = output[:self.config.MAX_OUTPUT_LENGTH] + "\n... (truncated)"
         print(f"Output:\n---\n{output}\n---.")
@@ -181,7 +172,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Length: {len(output)}")
+        print(f""Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -210,7 +201,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Length: {len(output)}")
+        print(f""Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -243,7 +234,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f"Length: {len(output)}")
+        print(f""Length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -273,7 +264,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f"Length: {len(output)}")
+        print(f""Length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
@@ -311,7 +302,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f"Length: {len(output)}")
+        print(f""Length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
@@ -331,40 +322,28 @@ class Tools:
             function to convert HTML to Markdown. It also uses add_to_text_index to store the content
             in the archive with appropriate metadata.
         """
-        search_title = tool_input.get("title")
+        search_title = tool_input["title"]
         print(f"Title: {search_title}")
-        keywords = tool_input.get("keywords")
-        print(f"Keywords: {keywords}")
         try:
             page = wikipedia.page(title=search_title, auto_suggest=False)
             page_text = mark_down_formatting(page.html(), page.url)
         except Exception as e:
             page_text = str(e)
         page_text = page_text.strip()
-        print(f"Length: {len(page_text)}")
+        print(f""Length: {len(page_text)}")
         current_date = datetime.now().strftime("%Y-%m-%d")
         metadata = {"wikipedia_page": search_title, "date": current_date}
         metadata_delete = {"wikipedia_page": search_title}
         self.utils.add_to_text_index(page_text, search_title, metadata, metadata_delete)
 
-        print("Retrieving summary based on page title...")
         summary = self.retrieve_from_archive(search_title, self.state)
-
-        if keywords is not None and len(keywords) > 0:      
-            print("Retrieving documents based on keywords...")
-            retrieved_documents = self.retrieve_from_archive(keywords, self.state)
-        else:
-            retrieved_documents = ""
-
+        print(f"Summary length: {len(summary)}")
+        
         output = f"""The full content of the page ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
         
-        if len(retrieved_documents) > 0:
-            output += f"""\n\nThese are the documents retrieved from the archive based on the keywords:
-            {between_xml_tag(retrieved_documents, 'documents')}"""
-
         print(f"Output length: {len(output)}")
 
         return output
@@ -387,10 +366,8 @@ class Tools:
             It also uses mark_down_formatting to convert HTML to Markdown and add_to_text_index
             to store the content in the archive with appropriate metadata.
         """
-        url = tool_input.get("url")
+        url = tool_input["url"]
         print(f"URL: {url}")
-        keywords = tool_input.get("keywords")
-        print(f"Keywords: {keywords}")
 
         parsed_url = urlparse(url)
         url_file_extension = os.path.splitext(parsed_url.path)[1].lower().lstrip('.')
@@ -405,10 +382,8 @@ class Tools:
                 
                 if url_file_extension in ['.pdf']:
                     page_text = self.utils.process_pdf_document(content)
-                elif url_file_extension in ['.pptx']:
-                    page_text = self.utils.process_pptx_document(content)
                 else:
-                    page_text = self.utils.process_other_document_formats(content)
+                    page_text = self.utils.process_non_pdf_documents(content)
             except Exception as e:
                 return f"Error downloading or processing the document: {str(e)}"
 
@@ -440,24 +415,14 @@ class Tools:
         metadata_delete = {"url": url}  # To delete previous content from the same URL
         self.utils.add_to_text_index(page_text, url, metadata, metadata_delete)
         
-        print("Retrieving summary based on page title and URL...")
         summary = self.retrieve_from_archive(title + " - " + url, self.state)
-
-        if keywords is not None and len(keywords) > 0:      
-            print("Retrieving documents based on keywords...")
-            retrieved_documents = self.retrieve_from_archive(keywords, self.state)
-        else:
-            retrieved_documents = ""
-
+        print(f"Summary length: {len(summary)}")
+        
         output = f"""The full content of the URL ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
-            This is a summary of the page:
+            Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}"""
-
-        if len(retrieved_documents) > 0:
-            output += f"""\n\nThese are the documents retrieved from the archive based on the keywords:
-            {between_xml_tag(retrieved_documents, 'documents')}"""
-
+        
         print(f"Output length: {len(output)}")
 
         return output
@@ -491,7 +456,9 @@ class Tools:
         try:
             response = self.utils.get_text_catalog_search(query)
         except Exception as ex:
-            print(ex)
+            error_message = f"Error: {ex}"
+            print(error_message)
+            return error_message            
 
         documents = ""
         for value in response["hits"]["hits"]:
@@ -501,7 +468,7 @@ class Tools:
                 documents += between_xml_tag(json.dumps(source), "document", {"id": id}) + "\n"
                 state["archive"].add(id)
 
-        print(f"Length: {len(documents)}")
+        print(f""Length: {len(documents)}")
         return between_xml_tag(documents, "documents")
 
     def get_tool_result_retrive_from_archive(self, tool_input: dict) -> str:
@@ -620,7 +587,7 @@ class Tools:
                 if len(content) == 0:
                     return "You need to provide content to add a new section."
                 try:
-                    self.utils.process_image_placeholders(content)
+                    _ = self.utils.process_image_placeholders(content)
                 except Exception as e:
                     error_message = f"Section not added. Error: {e}"
                     print(error_message)
@@ -681,7 +648,7 @@ class Tools:
                     return str(e)
                 with open(f"{sketchbook_full_absolute_path_without_extension}.md", "w") as file:
                     file.write(sketchbook_output)
-                for output_format in ["html", "pdf", "docx"]:
+                for output_format in ["docx"]:
                     try:
                         pypandoc.convert_file(
                             f"{sketchbook_full_absolute_path_without_extension}.md",
@@ -694,9 +661,80 @@ class Tools:
                         error_message = f"Error: {e}"
                         print(error_message)
                         return error_message
-                return f"The sketchbook ({num_sections} sections) has been saved as {sketchbook_filename_without_extension}."
+                return f"The sketchbook ({num_sections} sections) has been shared and saved as {sketchbook_filename_without_extension}."
             case _:
                 return "Invalid command."
+
+    def get_tool_result_checklist(self, tool_input: dict) -> str:
+        """
+        Process a checklist command and update the checklist state accordingly.
+
+        This function handles various checklist operations such as starting a new checklist,
+        adding items, showing items, and marking items as completed.
+
+        Args:
+            tool_input (dict): A dictionary containing the 'command' and optional 'content'.
+
+        Returns:
+            str: A message indicating the result of the operation.
+
+        Commands:
+            - start_new: Initializes a new empty checklist.
+            - add_item_at_the_end: Adds a new item to the checklist.
+            - show_items: Shows all items in the checklist.
+            - mark_next_to_do_item_as_completed: Marks the next to-do item in the checklist as completed.
+
+        Note:
+            This function uses the utils.render_checklist method to render the checklist.
+            It also keeps track of the checklist items in the state.
+        """
+
+        def render_checklist() -> str:
+            checklist = self.state["checklist"]
+            output = ""
+            for index, item in enumerate(checklist):
+                item_state = "COMPLETED" if item['completed'] else "TO DO"
+                output += f"{index + 1}. [{item_state}] {item['content']}\n"
+            return between_xml_tag(output, "checklist")
+
+        command = tool_input.get("command")
+        content = tool_input.get("content", "")
+
+        print(f"Command: {command}")
+        if len(content) > 0:
+            print(f"Content:\n---\n{content}\n---")
+
+        num_items = len(self.state["checklist"])
+
+        match command:
+            case "start_new":
+                self.state["checklist"] = []
+                return "This is a new checklist. There are no items. Start by adding some content."
+            case "add_item_at_the_end":
+                if len(content) == 0:
+                    return "You need to provide content to add a new item."
+                item = {
+                    "content": content,
+                    "completed": False
+                }
+                self.state["checklist"].append(item)
+                return f"New item added at the end. Add more items or mark the next to-do item as completed. This are the items in the current checklist:\n\n{render_checklist()}"
+            case "show_items":
+                if num_items == 0:
+                    return "The checklist is empty. There are no items to show."
+                return f"This are the items in the current checklist:\n\n{render_checklist()}"
+            case "mark_next_to_do_item_as_completed":
+                if num_items == 0:
+                    return "The checklist is empty. There are no items to mark as completed."
+                to_do_index = next((i for i, item in enumerate(self.state["checklist"]) if not item["completed"]), None)
+                if to_do_index is None:
+                    return "All items in the checklist are already completed."
+                self.state["checklist"][to_do_index]["completed"] = True
+                return f"Item number {to_do_index + 1} has been marked as completed. Add more items or mark the next to-do item as completed. This are the items in the current checklist:\n\n{render_checklist()}"
+            case _:
+                error_message = f"Invalid command: {command}"
+                print(error_message)
+                return error_message
 
     def get_tool_result_generate_image(self, tool_input: dict) -> str:
         """
@@ -1019,32 +1057,32 @@ class Tools:
             sort_by=arxiv.SortCriterion.Relevance,
         )
 
-        titles = {}
+        abstracts = {}
 
         with tempfile.TemporaryDirectory() as temp_dir:
             for i, result in enumerate(arxiv_client.results(search)):
                 print(f"Downloading result {i}: {result.entry_id} - {result.title} ...")
-                titles[result.entry_id] = result.title
+                abstracts[result.entry_id] = result.title + "\n\n" + result.summary
                 filename = f"{i}.pdf"
                 result.download_pdf(dirpath=temp_dir, filename=filename)
                 full_path = os.path.join(temp_dir, filename)
                 article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
 
-                print(f"Length: {len(article_text)}")
+                print(f""Length: {len(article_text)}")
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 metadata = {"arxiv": result.entry_id, "date": current_date}
                 metadata_delete = {"arxiv": result.entry_id}
                 self.utils.add_to_text_index(article_text, result.entry_id, metadata, metadata_delete)
 
-        all_titles = ""
-        for id, title in titles.items():
-            all_titles += f"{between_xml_tag(title, 'title', {'id': id})}\n"
+        all_abstracts = ""
+        for id, abstract in abstracts.items():
+            all_abstracts += f"{between_xml_tag(abstract, 'abstract', {'id': id})}\n"
 
-        all_titles = between_xml_tag(all_titles, "titles")
+        all_abstracts = between_xml_tag(all_abstracts, 'abstracts')
 
-        print(f"Titles length: {len(all_titles)}")
+        print(f"Abstracts length: {len(all_abstracts)}")
 
-        return f"Based on your query, I found the following articles on arXiv:\n\n{all_titles}\n\nThe full content of the articles has been stored in the archive. You must now retrieve the information you need from the archive."
+        return f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\nThe full content of the articles has been stored in the archive. Now you must retrieve the information you need from each article in the archive."
 
     def get_tool_result_save_file(self, tool_input: dict) -> str:
         """
