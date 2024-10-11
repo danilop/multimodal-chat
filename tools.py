@@ -172,7 +172,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f""Length: {len(output)}")
+        print(f"Output length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -201,7 +201,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f""Length: {len(output)}")
+        print(f"Output length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -234,7 +234,7 @@ class Tools:
         except Exception as e:
             output = str(e)
         output = output.strip()
-        print(f""Length: {len(output)}")
+        print(f"Output length: {len(output)}")
 
         return (
             between_xml_tag(output, "output")
@@ -264,7 +264,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f""Length: {len(output)}")
+        print(f"Output length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
@@ -302,7 +302,7 @@ class Tools:
             output = str(e)
         output = output.strip()
         print(f"Output: {output}")
-        print(f""Length: {len(output)}")
+        print(f"Output length: {len(output)}")
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
@@ -330,7 +330,7 @@ class Tools:
         except Exception as e:
             page_text = str(e)
         page_text = page_text.strip()
-        print(f""Length: {len(page_text)}")
+        print(f"Output length: {len(page_text)}")
         current_date = datetime.now().strftime("%Y-%m-%d")
         metadata = {"wikipedia_page": search_title, "date": current_date}
         metadata_delete = {"wikipedia_page": search_title}
@@ -468,7 +468,7 @@ class Tools:
                 documents += between_xml_tag(json.dumps(source), "document", {"id": id}) + "\n"
                 state["archive"].add(id)
 
-        print(f""Length: {len(documents)}")
+        print(f"Output length: {len(documents)}")
         return between_xml_tag(documents, "documents")
 
     def get_tool_result_retrive_from_archive(self, tool_input: dict) -> str:
@@ -537,7 +537,7 @@ class Tools:
             str: A single string containing all sketchbook sections, properly formatted.
         """
         
-        processed_sketchbook = [self.utils.process_image_placeholders(section, for_output_file=True) for section in sketchbook]
+        processed_sketchbook = [self.utils.process_image_placeholders_for_file(section) for section in sketchbook]
 
         rendered_sketchbook = "\n\n".join(processed_sketchbook)
         rendered_sketchbook = "\n" + re.sub(r'\n{3,}', '\n\n', rendered_sketchbook) + "\n"
@@ -548,7 +548,7 @@ class Tools:
         Process a sketchbook command and update the sketchbook state accordingly.
 
         This function handles various sketchbook operations such as starting a new sketchbook,
-        adding sections, reviewing sections, updating sections, and sharing the sketchbook.
+        adding sections, reviewing sections, updating sections, and saving the sketchbook.
 
         Args:
             tool_input (dict): A dictionary containing the command and optional content.
@@ -562,7 +562,6 @@ class Tools:
             - start_review: Begins a review of the sketchbook from the first section.
             - next_section: Moves to the next section during review.
             - update_section: Updates the content of the current section.
-            - share_sketchbook: Shares the entire sketchbook content.
             - save_sketchbook_file: Saves the sketchbook to a file.
             - info: Provides information about the sketchbook and current section.
 
@@ -587,7 +586,7 @@ class Tools:
                 if len(content) == 0:
                     return "You need to provide content to add a new section."
                 try:
-                    _ = self.utils.process_image_placeholders(content)
+                    _ = self.utils.process_image_placeholders_for_file(content)
                 except Exception as e:
                     error_message = f"Section not added. Error: {e}"
                     print(error_message)
@@ -595,7 +594,7 @@ class Tools:
                 self.state["sketchbook"].append(content)
                 num_sections = len(self.state["sketchbook"])
                 self.state["sketchbook_current_section"] = num_sections - 1
-                return f"New section added at the end. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Add more sections, start a review, or share the sketchbook with the user."
+                return f"New section added at the end. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user."
             case "start_review":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to review or update. Start by adding some content."
@@ -605,7 +604,7 @@ class Tools:
                 return f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
             case "next_section":
                 if self.state["sketchbook_current_section"] >= num_sections - 1:
-                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Start a review or share the sketchbook with the user."
+                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Start a review or save the sketchbook for the user."
                 self.state["sketchbook_current_section"] += 1
                 section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
@@ -616,7 +615,7 @@ class Tools:
                 if len(content) == 0:
                     return "You need to provide content to update the current section."
                 try:
-                    self.utils.process_image_placeholders(content)
+                    _ = self.utils.process_image_placeholders_for_file(content)
                 except Exception as e:
                     error_message = f"Section not updated. Error: {e}"
                     print(error_message)
@@ -635,10 +634,10 @@ class Tools:
                 section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
                 return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
-            case "share_sketchbook" | "save_sketchbook_file":
+            case "save_sketchbook_file":
                 if num_sections == 0:
-                    return "The sketchbook is empty. There are no sections to share or save."
-                print("Sharing the sketchbook...")
+                    return "The sketchbook is empty. There are no sections to save."
+                print("Saving the sketchbook...")
                 current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
                 sketchbook_filename_without_extension = f"sketchbook_{current_datetime}"
                 sketchbook_full_absolute_path_without_extension = os.path.abspath(os.path.join(self.config.OUTPUT_PATH, sketchbook_filename_without_extension))
@@ -646,22 +645,28 @@ class Tools:
                     sketchbook_output = self.render_sketchbook(self.state["sketchbook"])
                 except ImageNotFoundError as e:
                     return str(e)
-                with open(f"{sketchbook_full_absolute_path_without_extension}.md", "w") as file:
-                    file.write(sketchbook_output)
-                for output_format in ["docx"]:
-                    try:
-                        pypandoc.convert_file(
-                            f"{sketchbook_full_absolute_path_without_extension}.md",
-                            output_format,
-                            outputfile=f"{sketchbook_full_absolute_path_without_extension}.{output_format}",
-                            extra_args=["--toc"],
-                            cworkdir=self.config.OUTPUT_PATH,
-                        )
-                    except Exception as e:
-                        error_message = f"Error: {e}"
-                        print(error_message)
-                        return error_message
-                return f"The sketchbook ({num_sections} sections) has been shared and saved as {sketchbook_filename_without_extension}."
+                # First Markdown, then other formats
+                response = ""
+                input_format = "md"
+                output_format = "docx"
+                output_filename = f"{sketchbook_full_absolute_path_without_extension}.{output_format}"
+                output_basename = os.path.basename(output_filename)
+                try:
+                    pypandoc.convert_text(
+                        sketchbook_output,
+                        output_format,
+                        format=input_format,
+                        outputfile=output_filename,
+                        extra_args=["--toc"],
+                        cworkdir=self.config.OUTPUT_PATH,
+                    )
+                except Exception as e:
+                    error_message = f"Error: {e}"
+                    print(error_message)
+                    response += f"Error while saving the sketchbook as {output_format}: {error_message}\n"
+                    return response
+                                                        
+                return f"The sketchbook has been saved as {output_basename}.\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
             case _:
                 return "Invalid command."
 
@@ -710,6 +715,15 @@ class Tools:
             case "start_new":
                 self.state["checklist"] = []
                 return "This is a new checklist. There are no items. Start by adding some content."
+            case "add_item_as_next":
+                if len(content) == 0:
+                    return "You need to provide content to add a new item."
+                item = {
+                    "content": content,
+                    "completed": False
+                }
+                self.state["checklist"].insert(0, item)
+                return f"New item added as next. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
             case "add_item_at_the_end":
                 if len(content) == 0:
                     return "You need to provide content to add a new item."
@@ -718,11 +732,11 @@ class Tools:
                     "completed": False
                 }
                 self.state["checklist"].append(item)
-                return f"New item added at the end. Add more items or mark the next to-do item as completed. This are the items in the current checklist:\n\n{render_checklist()}"
+                return f"New item added at the end. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
             case "show_items":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
-                return f"This are the items in the current checklist:\n\n{render_checklist()}"
+                return f"These are the items in the current checklist:\n\n{render_checklist()}"
             case "mark_next_to_do_item_as_completed":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to mark as completed."
@@ -730,7 +744,7 @@ class Tools:
                 if to_do_index is None:
                     return "All items in the checklist are already completed."
                 self.state["checklist"][to_do_index]["completed"] = True
-                return f"Item number {to_do_index + 1} has been marked as completed. Add more items or mark the next to-do item as completed. This are the items in the current checklist:\n\n{render_checklist()}"
+                return f"Item number {to_do_index + 1} has been marked as completed. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
             case _:
                 error_message = f"Invalid command: {command}"
                 print(error_message)
@@ -1068,7 +1082,7 @@ class Tools:
                 full_path = os.path.join(temp_dir, filename)
                 article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
 
-                print(f""Length: {len(article_text)}")
+                print(f"Output length: {len(article_text)}")
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 metadata = {"arxiv": result.entry_id, "date": current_date}
                 metadata_delete = {"arxiv": result.entry_id}
@@ -1182,9 +1196,12 @@ class Tools:
         for segment in audio_segments:
             full_audio_segment += segment
 
-        full_audio_segment.export(f"{filename_without_extension}.mp3", format="mp3")
+        output_filename = f"{filename_without_extension}.mp3"
+        full_audio_segment.export(output_filename, format="mp3")
 
-        return f"The output conversation has been saved as a text file ({filename_without_extension}.txt) and an audio file ({filename_without_extension}.mp3, {full_audio_segment.duration_seconds} seconds)."
+        output_basename = os.path.basename(output_filename)
+
+        return f"The output conversation has been saved as an audio file ({output_basename}, {full_audio_segment.duration_seconds} seconds).\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
 
     def check_tools_consistency(self) -> None:
         """
@@ -1227,11 +1244,9 @@ class Tools:
         Raises:
             ToolError: If an invalid tool name is provided.
         """
-        global opensearch_client
-
         tool_use_name = tool_use_block['name']
 
-        print(f"Using tool {tool_use_name}")
+        print(f"Tool: {tool_use_name}")
 
         try:
             return self.tool_functions[tool_use_name](tool_use_block['input'])

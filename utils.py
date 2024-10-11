@@ -647,7 +647,7 @@ class Utils:
 
         return chunks
 
-    def process_image_placeholders(self, text: str, for_output_file: bool = False) -> str:
+    def process_image_placeholders_for_file(self, text: str) -> str:
         """
         Replace image placeholders with markdown to display the image.
 
@@ -662,18 +662,56 @@ class Utils:
             image = self.get_image_by_id(image_id)
             if isinstance(image, dict):
                 filename = image["filename"]
-                if for_output_file:
-                    filename = os.path.relpath(os.path.join('..', filename))
-                    # Using Markdown syntax with filename
-                    return f'![{escape(image["description"])}]({filename})'
-                # Using Gradio syntax with "file=filename"
-                return f'![{escape(image["description"])}](file={filename})'
+                filename = os.path.relpath(os.path.join('..', filename))
+                # Using Markdown syntax with filename
+                return f'![{escape(image["description"])}]({filename})'
             else:
                 error_message = f"Image with 'image_id' {image_id} not found in the image catalog."
                 print(error_message)
                 raise ImageNotFoundError(error_message)
 
-        return re.sub(r'\[image_id:\s*([^\s\]]+)\s*\]', replace_image, text)
+        pattern = r'\[image_id:\s*([^\s\]]+)\s*\]'
+        return re.sub(pattern, replace_image, text)
+ 
+    def process_image_and_file_placeholders_for_chat(self, text: str) -> list[dict]:
+        """
+        Replace image placeholders with a list of dictionaries representing text and images.
+
+        Args:
+            text (str): A string containing text and image placeholders.
+
+        Returns:
+            list[dict]: A list of dictionaries, each representing either text or an image.
+        """
+        pattern = r'\[(image_id|file):\s*([^\s\]]+)\s*\]'
+        parts = re.split(pattern, text)
+
+        result = []
+
+        for i, part in enumerate(parts):
+            match i % 3:
+                case 0:
+                    if len(part) > 0:  # Only add non-empty text parts
+                        result.append({"format": "text", "text": part})
+                case 1:
+                    part_type = part
+                case 2:
+                    match part_type:
+                        case "image_id":
+                            image_id = part
+                            image = self.get_image_by_id(image_id)
+                            result.append({"format": "file", "filename": image['filename'], "description": image['description']})
+                        case "file":
+                            basename = part
+                            filename = self.config.OUTPUT_PATH + basename
+                            print(f"part: {part}")
+                            print(f"filename: {filename}")
+                            print(f"basename: {basename}")
+                            result.append({"format": "file", "filename": filename, "description": basename })
+                        case _:
+                            print(f"Unknown part type: {part_type}")
+
+        return result
 
     def get_file_name_and_extension(self, full_file_name: str) -> tuple[str, str]:
         """
@@ -848,7 +886,6 @@ class Utils:
 
         Args:
             file (str): The path to the PDF file to be processed.
-            output_queue (queue.Queue): A queue to put the output into.
 
         Returns:
             str: The text content of the PDF file.
@@ -899,7 +936,7 @@ class Utils:
             Engine='generative',
             OutputFormat='mp3',
             VoiceId=voice,
-            Text=text
+            Text=text,
         )
         with closing(response["AudioStream"]) as audio_stream:
             audio_data = audio_stream.read()
@@ -1003,16 +1040,14 @@ class Utils:
 
         # Replace specific XML tags with their content
         for tag, replacement in tag_to_replace.items():
-            def replace_tag(tag, pattern, cleaned_text):
-                return re.sub(pattern, lambda m: f"<{replacement}>{m.group(1)}</{replacement}>", cleaned_text, flags=re.DOTALL)
-
-            # Replace both opening and closing tags
-            pattern = fr'<{tag}>(.*?)</{tag}>'
-            cleaned_text = replace_tag(tag, pattern, cleaned_text)
+            # Replace opening tags
+            opening_pattern = fr'<{tag}>'
+            cleaned_text = re.sub(opening_pattern, f'<{replacement}>', cleaned_text)
             
-            # Replace unclosed tags (opening tag without closing tag)
-            unclosed_pattern = fr'<{tag}>(.*?)(?=<|$)'
-            cleaned_text = replace_tag(tag, unclosed_pattern, cleaned_text)
+            # Replace closing tags
+            closing_pattern = fr'</{tag}>'
+            cleaned_text = re.sub(closing_pattern, f'</{replacement}>', cleaned_text)
+                    
         return cleaned_text
 
     def remove_specific_xml_tags(self, text: str) -> str:
@@ -1038,16 +1073,16 @@ class Utils:
 
         # Remove specific XML tags and their content
         for tag in tags_to_remove:
-            def remove_tag(tag, pattern, cleaned_text):
+            def remove_tag(pattern, cleaned_text):
                 return re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
 
             # Remove closed tags
             pattern = fr'<{tag}>(.*?)</{tag}>'
-            cleaned_text = remove_tag(tag, pattern, cleaned_text)
+            cleaned_text = remove_tag(pattern, cleaned_text)
             
             # Remove unclosed tags
             unclosed_pattern = fr'<{tag}>(.*?)$'
-            cleaned_text = remove_tag(tag, unclosed_pattern, cleaned_text)
+            cleaned_text = remove_tag(unclosed_pattern, cleaned_text)
 
         return cleaned_text
 

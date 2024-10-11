@@ -2,7 +2,7 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts or QR codes,to test Python code, or to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn</modules> You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
+			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts, diagrams, or QR codes, to test Python code, and to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn</modules> You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or diagrams written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -156,7 +156,7 @@
 						},
 						"keywords": {
 							"type": "string",
-							"description": "The keywords to retrieve information from the archive. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
+							"description": "The keywords to retrieve information for this page. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
 						}
 					},
 					"required": [
@@ -181,7 +181,7 @@
 						},
 						"keywords": {
 							"type": "string",
-							"description": "The keywords to retrieve information from the archive. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
+							"description": "The keywords to retrieve information for this page. Keywords should be specific to the content and topic you want to retrieve. Avoid generic terms like 'latest news' or 'general information'."
 						}
 					},
 					"required": [
@@ -235,14 +235,14 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it with me. I cannot see the sketchbook before you share it.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, save it for me. I cannot see the sketchbook before you save it and then share it.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', 'share_sketchbook', or 'save_sketchbook_file'."
+							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', or 'save_sketchbook_file'."
 						},
 						"content": {
 							"type": "string",
@@ -259,14 +259,14 @@
 	{
 		"toolSpec": {
 			"name": "checklist",
-			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points.",
+			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item as next (to do it immediately) or at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the checklist, can be 'start_new', 'add_item_at_the_end', 'show_items', 'mark_next_to_do_item_as_completed'."
+							"description": "How to use the checklist, can be 'start_new', 'add_item_as_next', 'add_item_at_the_end', 'show_items', 'mark_next_to_do_item_as_completed'."
 						},
 						"content": {
 							"type": "string",

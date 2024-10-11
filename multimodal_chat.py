@@ -6,7 +6,6 @@ import os
 import queue
 import re
 import threading
-import traceback
 import urllib3
 
 from datetime import datetime
@@ -38,7 +37,6 @@ os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 TEXT_INDEX_CONFIG = load_json_config("./Config/text_vector_index.json")
 MULTIMODAL_INDEX_CONFIG = load_json_config("./Config/multimodal_vector_index.json")
 EXAMPLES = load_json_config('./Config/examples.json')
-
 
 class MultimodalChat:
 
@@ -74,24 +72,8 @@ class MultimodalChat:
     def run(self):
         print("Starting the chatbot...")
 
-        # To enable the copy button
-        custom_chatbot = gr.Chatbot(
-            elem_id="chatbot",
-            type="messages",
-            label="Yet Another Chatbot",
-            show_copy_button=True,
-        )
-
-        # To allow multiple file uploads
-        custom_textbox = gr.MultimodalTextbox(
-            placeholder="Enter your instructions and press enter.",
-            file_count='multiple',
-        )
-
-        # Formatted for type "messages"
-        formatted_examples = [
-            [{"text": example, "files": []}] for example in EXAMPLES
-        ]
+        # Formatted for type "messages" (multimodal)
+        formatted_examples = [{"text": example} for example in EXAMPLES]
 
         CSS = """
         .contain { display: flex; flex-direction: column; }
@@ -100,32 +82,54 @@ class MultimodalChat:
         #chatbot { flex-grow: 1; overflow: auto;}
         """
 
-        chat_interface = gr.ChatInterface(
-            css=CSS,
-            fn=self.chat_function,
-            type="messages",
-            title="Yet Another Chatbot",
-            description="Your Helpful AI Assistant. I can search and browse the web, search Wikipedia, the news, and maps, run Python code that I write, write long articles, generate, download and compare images, access arXiv research papers, and transform content into an audio conversation.",
-            chatbot=custom_chatbot,
-            textbox=custom_textbox,
-            multimodal=True,
-            examples=formatted_examples,
-            examples_per_page=2,
-            additional_inputs=[
-                gr.Checkbox(self.config.STREAMING, label="Streaming"),
-                gr.Slider(0, 1, value=self.config.DEFAULT_TEMPERATURE, label="Temperature"),
-                gr.Textbox(self.config.DEFAULT_SYSTEM_PROMPT, label="System Prompt"),
-                gr.State(self.state),
-            ],
-            fill_height=True,
-        )
+        with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
+            gr.Markdown(
+                """
+                # Multimodal Chat
+                Start with the examples.
+                """)
+
+            # To enable the copy button
+            chatbot = gr.Chatbot(
+                elem_id="chatbot",
+                show_label=False,
+                type="messages",
+                examples=formatted_examples,
+                show_copy_button=True,
+                show_copy_all_button=True,
+            )
+
+            # To allow multiple file uploads
+            with gr.Row(equal_height=True):
+                chat_input = gr.MultimodalTextbox(
+                    show_label=False,
+                    placeholder="Enter your instructions and press enter.",
+                    file_count='multiple',
+                )
+                gr.ClearButton([chat_input, chatbot], scale=0)
+
+            def add_message(history: list, message):
+                for x in message["files"]:
+                    history.append({"role": "user", "content": {"path": x}})
+                if message["text"] is not None:
+                    history.append({"role": "user", "content": message["text"]})
+                return history, ''
+
+            chat_input.submit(add_message, [chatbot, chat_input], [chatbot, chat_input], queue=False).then(
+                self.chat_function, chatbot, chatbot
+            )
+
+            def add_example(evt: gr.SelectData):
+                return evt.value
+            
+            chatbot.example_select(add_example, None, chat_input)
 
         abs_image_path = os.path.abspath(self.config.IMAGE_PATH)
         abs_output_path = os.path.abspath(self.config.OUTPUT_PATH)
         allowed_paths = [abs_image_path, abs_output_path]
         print(f"Allowed paths: {', '.join(allowed_paths)}")
 
-        chat_interface.launch(allowed_paths=allowed_paths)
+        app.launch(allowed_paths=allowed_paths)
 
     def process_response_message(self, response_message: dict) -> None:
         """
@@ -233,16 +237,15 @@ class MultimodalChat:
         else:
             return None
 
-    def format_messages_for_bedrock_converse(self, message: dict, history: list[dict]) -> list[dict]:
+    def format_messages_for_bedrock_converse(self, history: list[dict]) -> list[dict]:
         """
         Format messages for the Bedrock converse API.
 
-        This function takes a message, conversation history, and state, and formats them
+        This function takes the conversation history and formats them
         into a structure suitable for the Bedrock Converse API. It processes text and file
         contents, handles different message types, and prepares image and document data.
 
         Args:
-            message (dict): The latest user message.
             history (list): A list of previous messages in the conversation.
             state (dict): The current state of the application.
             output_queue (queue.Queue): A queue to put the output into.
@@ -254,9 +257,6 @@ class MultimodalChat:
             This function handles various types of content including text, images, and documents.
             It also processes file uploads and stores images in the catalog when necessary.
         """
-
-        # Temporarily add the latest user message for convinience
-        history.append({"role": "user", "content": message})
 
         messages = []
         message_content = []
@@ -295,7 +295,8 @@ class MultimodalChat:
                 message_content.append({"text": m_text})
                 append_message = True
             for file in m_files:
-                file = file['path']
+                if 'path' in file: # Remove?
+                    file = file['path'] # Remove?
                 file_name, extension = self.utils.get_file_name_and_extension(os.path.basename(file))
                 if extension == 'jpg':
                     extension = 'jpeg' # Fix
@@ -340,7 +341,6 @@ class MultimodalChat:
                         error_message = f"Error processing {file_name}.{extension} file: {ex}"
                         message_content.append({ "text": error_message })
                         print(error_message)
-                        traceback.print_exc()
                 elif extension in self.config.DOCUMENT_FORMATS:
                     with open(file, 'rb') as f:
                         file_content = f.read()
@@ -361,9 +361,6 @@ class MultimodalChat:
                 else:
                     messages.append({"role": m_role, "content": message_content})
                 message_content = []
-
-        # Remove the last user message added at the beginning of this function
-        history.pop()
 
         return messages
 
@@ -485,9 +482,12 @@ class MultimodalChat:
                     try:
                         # Load the tool input JSON string to a dictionary
                         stream_state['tool_use_block']['input'] = json.loads(stream_state['tool_use_block']['input'])
-                        
-                        stream_state['new_message']['content'].append( { "toolUse": stream_state['tool_use_block'].copy() } )
+                    except json.JSONDecodeError:
+                        pass
 
+                    stream_state['new_message']['content'].append( { "toolUse": stream_state['tool_use_block'].copy() } )
+
+                    try:
                         tool_result_value = self.tools.get_tool_result(stream_state['tool_use_block'])
 
                         if tool_result_value is not None:
@@ -526,10 +526,8 @@ class MultimodalChat:
 
         Args:
             messages (list): A list of message dictionaries representing the conversation history.
-            system_prompt (str): The system prompt to guide the AI model's behavior.
             temperature (float): The temperature parameter for the AI model's response generation.
-            state (dict): The current state of the chat interface.
-            output_queue (queue.Queue): A queue to put the output into.
+            system_prompt (str): The system prompt to guide the AI model's behavior.
 
         Returns:
             None
@@ -600,7 +598,7 @@ class MultimodalChat:
             else:
                 continue_loop = False
 
-    def chat_function(self, message: dict, history: list[dict], streaming: bool, temperature: float, system_prompt: str, state: dict) -> Generator[str, None, None]:
+    def chat_function(self, history: list[dict]) -> Generator[list[dict], None, None]:
         """
         Process a chat message and generate a response using an AI model.
 
@@ -609,63 +607,78 @@ class MultimodalChat:
         It also handles displaying additional content like images or text in the chat interface.
 
         Args:
-            message (dict): The current message from the user.
             history (list): A list of previous messages in the conversation.
             system_prompt (str): The system prompt to guide the AI model's behavior.
             temperature (float): The temperature parameter for the AI model's response generation.
             state (dict): The current state of the chat interface.
 
         Yields:
-            str: The generated response from the AI model, including any additional content.
+            str: The generated response from the AI model, including any additional content, as part of the updated history
 
         Note:
             This function modifies the 'state' dictionary to store output for display in the chat interface.
             It handles both text and file inputs, and can display generated images in the response.
         """
-        def format_response(response):
+        def format_response(text):
+            cleaned_text = text
+            cleaned_text = self.utils.remove_specific_xml_tags(cleaned_text)
+            cleaned_text = self.utils.replace_specific_xml_tags(cleaned_text)
+            return cleaned_text
+
+        def find_images_in_response(response):
             try:
-                response = self.utils.process_image_placeholders(response)
+                results = self.utils.process_image_and_file_placeholders_for_chat(response)
             except Exception as e:
                 error_message = f"Error processing image placeholders: {e}"
                 print(error_message)
-                return error_message
-            response = self.utils.remove_specific_xml_tags(response)
-            response = self.utils.replace_specific_xml_tags(response)
-            return response
+                return [{"format": "text", "text": error_message}]
+            return results
 
-        if message['text'] == '':
-            yield "Please enter a message."
+        messages = self.format_messages_for_bedrock_converse(history)
+        if self.config.STREAMING:
+            target_function = self.manage_conversation_flow_stream
         else:
-            messages = self.format_messages_for_bedrock_converse(message, history)
-            if streaming:
-                target_function = self.manage_conversation_flow_stream
-            else:
-                target_function = self.manage_conversation_flow
-            thread = threading.Thread(target=target_function, args=(messages, temperature, system_prompt))
-            thread.start()
+            target_function = self.manage_conversation_flow
+        thread = threading.Thread(target=target_function, args=(messages, self.config.TEMPERATURE, self.config.SYSTEM_PROMPT))
+        thread.start()
 
-            num_dots = 0
-            tot_dots = 3
-            response = ""
-            while thread.is_alive() or not self.output_queue.empty():
-                try:
-                    output = self.output_queue.get(timeout=0.5)
-                    response += output['text']
-                    if not streaming:
-                        response += "\n"
-                    yield format_response(response) # Yield the response as it's being generated
-                    self.output_queue.task_done()
-                except queue.Empty:
-                    if len(response) > 0:
-                        num_dots = (num_dots % tot_dots) + 1
-                        yield f"{format_response(response)}\n{'.' * num_dots}"
-                    continue  # If the queue is empty, continue the loop
+        num_dots = 0
+        tot_dots = 3
+        history.append({"role": "assistant", "content": ""})
 
-            yield format_response(response) # To avoid the last dot(s)
+        while thread.is_alive() or not self.output_queue.empty():
+            try:
+                output = self.output_queue.get(timeout=0.5)
+                history[-1]['content'] += output['text']
+                history[-1]['content'] = format_response(history[-1]['content'])
+                results = find_images_in_response(history[-1]['content'])
+                if len(results) > 1:
+                    history[-1]['content'] = ''
+                    for item in results:
+                        match item['format']:
+                            case 'text':
+                                history[-1]['content'] += item['text']
+                            case 'file':
+                                if len(history[-1]['content']) == 0:
+                                    history.pop()
+                                content = {"path": item['filename'], "alt_text": item['description']}
+                                history.append({"role": "assistant", "content": content})
+                                history.append({"role": "assistant", "content": ""})
+                yield history
+                self.output_queue.task_done()
+            except queue.Empty:
+                num_dots = (num_dots % tot_dots) + 1
+                if type(history[-1]['content']) == str:
+                    old_content = history[-1]['content']
+                    history[-1]['content'] += f"\n{'.' * num_dots}"
+                    yield history
+                    history[-1]['content'] = old_content
+                else:
+                    history.append({"role": "assistant", "content": f"\n{'.' * num_dots}"})
+                    yield history
+                    history.pop()
+                continue
 
-            print()
-            if not response:
-                yield "No response generated."
 
     def reset_index(self):
         self.utils.delete_index(self.config.TEXT_INDEX_NAME)
@@ -691,7 +704,6 @@ def parse_arguments() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_arguments()
-
 
     if args.reset_index:
         multimodal_chat = MultimodalChat(import_images=False)

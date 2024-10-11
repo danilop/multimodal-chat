@@ -46,8 +46,8 @@ class Config:
         self.MAX_ARCHIVE_RESULTS = config['DEFAULT'].getint('MAX_ARCHIVE_RESULTS')
         self.MAX_ARXIV_RESULTS = config['DEFAULT'].getint('MAX_ARXIV_RESULTS')
         self.MAX_IMAGE_SEARCH_RESULTS = config['DEFAULT'].getint('MAX_IMAGE_SEARCH_RESULTS')
-        self.DEFAULT_TEMPERATURE = config['DEFAULT'].getfloat('DEFAULT_TEMPERATURE')
-        self.DEFAULT_SYSTEM_PROMPT = config['DEFAULT']['DEFAULT_SYSTEM_PROMPT']
+        self.TEMPERATURE = config['DEFAULT'].getfloat('DEFAULT_TEMPERATURE')
+        self.SYSTEM_PROMPT = config['DEFAULT']['DEFAULT_SYSTEM_PROMPT']
         self.IMAGE_FORMATS = config['DEFAULT']['IMAGE_FORMATS'].split(', ')
         self.DOCUMENT_FORMATS = config['DEFAULT']['DOCUMENT_FORMATS'].split(', ')
         self.SHORT_IMAGE_DESCRIPTION_PROMPT = config['DEFAULT']['SHORT_IMAGE_DESCRIPTION_PROMPT']
