@@ -49,14 +49,7 @@ class MultimodalChat:
         """
         self.config = Config()
 
-        self.state = {
-            "sketchbook": [],
-            "sketchbook_current_page": 0,
-            "checklist": [],
-            "archive": set(),
-            "documents": {},
-            "improvements": "",
-        }
+        self.state = None # It is initialized in the run() method
 
         # Create IMAGES_PATH if not exists
         os.makedirs(os.path.dirname(self.config.IMAGE_PATH), exist_ok=True)
@@ -64,11 +57,8 @@ class MultimodalChat:
         # Create OUTPUT_PATH if not exists
         os.makedirs(os.path.dirname(self.config.OUTPUT_PATH), exist_ok=True)
 
-        self.output_queue = queue.Queue()
-
         self.clients = Clients(self.config.AWS_REGION, self.config.OPENSEARCH_HOST, self.config.OPENSEARCH_PORT)
         self.utils = Utils(self.config, self.clients)
-        self.tools = Tools(self.config, self.utils, self.state, self.output_queue)
 
         self.utils.create_index(self.config.TEXT_INDEX_NAME, TEXT_INDEX_CONFIG)
         self.utils.create_index(self.config.MULTIMODAL_INDEX_NAME, MULTIMODAL_INDEX_CONFIG)
@@ -96,6 +86,21 @@ class MultimodalChat:
         """
 
         with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
+
+            output_queue = queue.Queue()
+            
+            self.state = {
+                "sketchbook": [],
+                "sketchbook_current_page": 0,
+                "checklist": [],
+                "archive": set(),
+                "documents": {},
+                "improvements": "",
+                "output_queue": output_queue,
+            }
+
+            self.tools = Tools(self.config, self.utils, self.state, output_queue)
+
             gr.Markdown(
                 """
                 # Multimodal Chat
@@ -185,7 +190,7 @@ class MultimodalChat:
                         hidden_content = "<!--\n" + tool_result + "\n-->"
                         output_content.append(hidden_content)
         for m in output_content:
-            self.output_queue.put({"format": "text", "text": m})
+            self.state['output_queue'].put({"format": "text", "text": m})
 
     def handle_response(self, response_message: dict) -> dict|None:
         """
@@ -446,7 +451,7 @@ class MultimodalChat:
                 match content_block_delta['delta']:
                     case {'text': text}:
                         stream_state['new_content'] += text
-                        self.output_queue.put({"format": "text", "text": text})
+                        self.state['output_queue'].put({"format": "text", "text": text})
                     case {'toolUse': tool_use_delta}:
                         stream_state['tool_use_block']['input'] += tool_use_delta['input']
                     case _:
@@ -616,9 +621,11 @@ class MultimodalChat:
         tot_dots = 3
         history.append({"role": "assistant", "content": ""})
 
-        while thread.is_alive() or not self.output_queue.empty():
+        output_queue = self.state['output_queue']
+
+        while thread.is_alive() or not output_queue.empty():
             try:
-                output = self.output_queue.get(timeout=0.5)
+                output = output_queue.get(timeout=0.5)
                 history[-1]['content'] += output['text']
                 history[-1]['content'] = format_response(history[-1]['content'])
                 results = find_images_in_response(history[-1]['content'])
@@ -635,7 +642,7 @@ class MultimodalChat:
                                 history.append({"role": "assistant", "content": content})
                                 history.append({"role": "assistant", "content": ""})
                 yield history
-                self.output_queue.task_done()
+                output_queue.task_done()
             except queue.Empty:
                 num_dots = (num_dots % tot_dots) + 1
                 if type(history[-1]['content']) == str:
