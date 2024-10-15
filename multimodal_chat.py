@@ -40,7 +40,13 @@ EXAMPLES = load_json_config('./Config/examples.json')
 
 class MultimodalChat:
 
-    def __init__(self, import_images: bool = True):
+    def __init__(self, import_images: bool = True) -> None:
+        """
+        Initialize the MultimodalChat class.
+
+        Args:
+            import_images (bool, optional): Whether to import images on initialization. Defaults to True.
+        """
         self.config = Config()
 
         self.state = {
@@ -48,7 +54,8 @@ class MultimodalChat:
             "sketchbook_current_page": 0,
             "checklist": [],
             "archive": set(),
-            "improvements": ""
+            "documents": {},
+            "improvements": "",
         }
 
         # Create IMAGES_PATH if not exists
@@ -69,7 +76,13 @@ class MultimodalChat:
         if import_images:
             self.utils.import_images(self.config.IMAGE_PATH)
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Start the chatbot interface using Gradio.
+
+        This method sets up the Gradio interface for the chatbot, including the chat input,
+        file upload, and example selection functionality.
+        """
         print("Starting the chatbot...")
 
         # Formatted for type "messages" (multimodal)
@@ -137,8 +150,6 @@ class MultimodalChat:
 
         Args:
             response_message (dict): The response message from the AI model.
-            state (dict): The current state of the application.
-            output_queue (queue.Queue): A queue to put the output into.
         """
         output_content = []
         if response_message['role'] == 'assistant' and 'content' in response_message:
@@ -180,23 +191,13 @@ class MultimodalChat:
         """
         Handle the response from the AI model and process any tool use requests.
 
-        This function takes the response message from the AI model and the current state,
-        processes any tool use requests within the response, and generates follow-up
-        content blocks with tool results or error messages.
-
         Args:
             response_message (dict): The response message from the AI model containing
                                     content blocks and potential tool use requests.
-            state (dict): The current state of the chat interface.
-            output_queue (queue.Queue): A queue to put the output into.
 
         Returns:
             dict or None: A follow-up message containing tool results if any tools were used,
                         or None if no tools were used.
-
-        Note:
-            This function handles tool execution errors by catching ToolError exceptions
-            and including error messages in the follow-up content blocks.
         """
 
         response_content_blocks = response_message['content']
@@ -241,21 +242,15 @@ class MultimodalChat:
         """
         Format messages for the Bedrock converse API.
 
-        This function takes the conversation history and formats them
-        into a structure suitable for the Bedrock Converse API. It processes text and file
-        contents, handles different message types, and prepares image and document data.
-
         Args:
-            history (list): A list of previous messages in the conversation.
-            state (dict): The current state of the application.
-            output_queue (queue.Queue): A queue to put the output into.
+            history (list[dict]): A list of previous messages in the conversation.
 
         Returns:
-            list: A list of formatted messages ready for the Bedrock converse API.
+            list[dict]: A list of formatted messages ready for the Bedrock converse API.
 
         Note:
             This function handles various types of content including text, images, and documents.
-            It also processes file uploads and stores images in the catalog when necessary.
+            It also processes file uploads and stores images
         """
 
         messages = []
@@ -322,17 +317,22 @@ class MultimodalChat:
                     append_message = True
                 elif self.config.HANDLE_DOCUMENT_TO_TEXT_IN_CODE:
                     file_name_with_extension = f'{file_name}.{extension}'
-                    print(f"Importing '{file_name_with_extension}'...")
                     try:
-                        if extension == 'pdf':
-                            file_text = self.utils.process_pdf_document(file)
-                        elif extension == 'pptx':
-                            file_text = self.utils.process_pptx_document(file)
-                        elif self.utils.is_text_file(file):
+                        if file_name_with_extension in self.state['documents']:
+                            print(f"File '{file_name_with_extension}' already imported.")
+                            file_text = self.state['documents'][file_name_with_extension]
+                        else:
+                            print(f"Importing '{file_name_with_extension}'...")
+                            if extension == 'pdf':
+                                file_text = self.utils.process_pdf_document(file)
+                            elif extension == 'pptx':
+                                file_text = self.utils.process_pptx_document(file)
+                            elif self.utils.is_text_file(file):
                                 with open(file, 'r', encoding='utf-8') as f:
                                     file_text = f.read()
-                        else:
-                            file_text = self.utils.process_other_document_formats(file)
+                            else:
+                                file_text = self.utils.process_other_document_formats(file)
+                            self.state['documents'][file_name_with_extension] = file_text
                         file_message = between_xml_tag(file_text, 'file', {'filename': file_name_with_extension})
                         self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension})
                         message_content.append({ "text": file_message })
@@ -368,19 +368,10 @@ class MultimodalChat:
         """
         Run a conversation loop with the AI model, processing responses and handling tool usage.
 
-        This function manages the conversation flow between the user and the AI model. It sends messages
-        to the model, processes the responses, handles any tool usage requests, and continues the
-        conversation until a final response is ready or the maximum number of loops is reached.
-
         Args:
-            messages (list): A list of message dictionaries representing the conversation history.
-            system_prompt (str): The system prompt to guide the AI model's behavior.
+            messages (list[dict]): A list of message dictionaries representing the conversation history.
             temperature (float): The temperature parameter for the AI model's response generation.
-            state (dict): The current state of the chat interface.
-            output_queue (queue.Queue): A queue to put the output into.
-
-        Returns:
-            str: The final response from the AI model, with XML tags removed.
+            system_prompt (str): The system prompt to guide the AI model's behavior.
 
         Note:
             This function uses global variables MAX_LOOPS and TOOLS, and relies on external functions
@@ -423,16 +414,10 @@ class MultimodalChat:
         """
         Process a chunk of streaming data from the AI model.
 
-        This function processes a chunk of streaming data from the AI model, updating the conversation history
-        and handling different types of content blocks such as message start, message stop, metadata, and content blocks.
-
         Args:
             chunk (dict): A chunk of streaming data from the AI model.
-            messages (list): A list of message dictionaries representing the conversation history.
+            messages (list[dict]): A list of message dictionaries representing the conversation history.
             stream_state (dict): A dictionary to store the state of the streaming process.
-
-        Returns:
-            None
 
         Note:
             This function handles different types of content blocks and updates the conversation history
@@ -520,22 +505,14 @@ class MultimodalChat:
         """
         Run a conversation loop with the AI model using streaming, processing responses and handling tool usage.
 
-        This function manages the conversation flow between the user and the AI model using a streaming approach.
-        It sends messages to the model, processes the responses in real-time, handles any tool usage requests,
-        and continues the conversation until a final response is ready or the maximum number of loops is reached.
-
         Args:
-            messages (list): A list of message dictionaries representing the conversation history.
+            messages (list[dict]): A list of message dictionaries representing the conversation history.
             temperature (float): The temperature parameter for the AI model's response generation.
             system_prompt (str): The system prompt to guide the AI model's behavior.
 
-        Returns:
-            None
-
         Note:
-            - This function uses global variables MAX_LOOPS, TOOLS, and bedrock_runtime_client.
-            - It handles streaming responses from the AI model and processes them in chunks.
-            - Tool usage is handled in real-time as the response is being generated.
+            This function handles streaming responses from the AI model and processes them in chunks.
+            Tool usage is handled in real-time as the response is being generated.
         """
         global bedrock_runtime_client
 
@@ -602,18 +579,11 @@ class MultimodalChat:
         """
         Process a chat message and generate a response using an AI model.
 
-        This function handles the main chat interaction, including processing the input message,
-        formatting the conversation history, running the AI model loop, and generating a response.
-        It also handles displaying additional content like images or text in the chat interface.
-
         Args:
-            history (list): A list of previous messages in the conversation.
-            system_prompt (str): The system prompt to guide the AI model's behavior.
-            temperature (float): The temperature parameter for the AI model's response generation.
-            state (dict): The current state of the chat interface.
+            history (list[dict]): A list of previous messages in the conversation.
 
         Yields:
-            str: The generated response from the AI model, including any additional content, as part of the updated history
+            list[dict]: The updated conversation history including the generated response.
 
         Note:
             This function modifies the 'state' dictionary to store output for display in the chat interface.
@@ -680,7 +650,12 @@ class MultimodalChat:
                 continue
 
 
-    def reset_index(self):
+    def reset_index(self) -> None:
+        """
+        Reset the text and multimodal indexes.
+
+        This method deletes and recreates the text and multimodal indexes in the database.
+        """
         self.utils.delete_index(self.config.TEXT_INDEX_NAME)
         self.utils.delete_index(self.config.MULTIMODAL_INDEX_NAME)
 
@@ -689,13 +664,11 @@ def parse_arguments() -> argparse.Namespace:
     """
     Parse command-line arguments for the chatbot application.
 
-    This function sets up an argument parser to handle command-line options
-    for the chatbot. It currently supports one optional flag:
-    --reset-index: When set, this flag indicates that the text and multimodal
-                indexes should be reset. Note that image files are not deleted.
-
     Returns:
         argparse.Namespace: An object containing the parsed arguments.
+
+    Note:
+        This function sets up an argument parser to handle the --reset-index flag.
     """
     parser = argparse.ArgumentParser(description='Process input parameters.')
     parser.add_argument('--reset-index', action='store_true', help='Reset text and multimodal indexes. Image files are not deleted.')

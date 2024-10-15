@@ -235,14 +235,14 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, save it for me. I cannot see the sketchbook before you save it and then share it.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', or 'save_sketchbook_file'."
+							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', or 'share_sketchbook_as_a_file'."
 						},
 						"content": {
 							"type": "string",
@@ -473,8 +473,8 @@
 	},
 	{
 		"toolSpec": {
-			"name": "save_file",
-			"description": "Use this tool to save a text file in output.",
+			"name": "save_text_file",
+			"description": "Use this tool to save a text file in output. The file can contain Markdown or plain text. The file is saved in the output folder. The filename must be unique.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -491,6 +491,26 @@
 					"required": [
 						"filename",
 						"content"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
+			"name": "check_if_file_exists",
+			"description": "Use this tool to check if a file exists in the output folder.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"filename": {
+							"type": "string",
+							"description": "The filename to check with no path."
+						}
+					},
+					"required": [
+						"filename"
 					]
 				}
 			}

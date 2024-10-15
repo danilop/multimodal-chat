@@ -46,7 +46,7 @@ class Tools:
     and provides methods to execute various tools based on the tool name and input.
     """
 
-    def __init__(self, config: Config, utils: Utils, state: dict, output_queue: queue.Queue):
+    def __init__(self, config: Config, utils: Utils, state: dict, output_queue: queue.Queue) -> None:
         """
         Initialize the Tools class with the given configuration, utilities, state, and output queue.
 
@@ -86,7 +86,8 @@ class Tools:
             'download_image_into_catalog': self.get_tool_result_download_image_into_catalog,
             'personal_improvement': self.get_tool_result_personal_improvement,
             'arxiv': self.get_tool_result_arxiv,
-            'save_file': self.get_tool_result_save_file,
+            'save_text_file': self.get_tool_result_save_text_file,
+            'check_if_file_exists': self.get_tool_result_check_if_file_exists,
             'conversation': self.get_tool_result_conversation,
         }
 
@@ -96,9 +97,6 @@ class Tools:
         """
         Execute a Python script using AWS Lambda and process the result.
 
-        This function sends a Python script to an AWS Lambda function for execution,
-        captures the output, and formats it for display in the chat interface.
-
         Args:
             tool_input (dict): A dictionary containing the 'script' key with the Python code to execute.
 
@@ -106,9 +104,9 @@ class Tools:
             str: The output of the Python script execution, wrapped in XML tags.
 
         Note:
-            - The function uses a global variable AWS_LAMBDA_FUNCTION_NAME for the Lambda function name.
+            - The function uses the AWS_LAMBDA_FUNCTION_NAME from the config for the Lambda function name.
             - It adds the script and its output to the chat interface's state for display.
-            - The output is truncated if it exceeds MAX_OUTPUT_LENGTH.
+            - The output is truncated if it exceeds MAX_OUTPUT_LENGTH from the config.
             - If images are generated during script execution, they are stored in the image catalog.
         """
         input_script = tool_input["script"]
@@ -161,7 +159,7 @@ class Tools:
             str: XML-tagged output containing the search results and a message about archiving.
 
         Note:
-            This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
+            This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
             It also adds the search results to the text index for future retrieval.
         """
         search_keywords = tool_input["keywords"]
@@ -431,9 +429,6 @@ class Tools:
         """
         Retrieve content from the archive based on given query.
 
-        This function searches the text index using the provided keywords and returns
-        the matching documents.
-
         Args:
             query (str): The keywords to search for.
             state (dict): The current state of the chat interface.
@@ -525,10 +520,6 @@ class Tools:
     def render_sketchbook(self, sketchbook: list[str]) -> str:
         """
         Render a sketchbook as a single string, optionally using a new path for images.
-
-        This function takes a list of strings representing sketchbook sections and combines them
-        into a single string, with each section separated by double newlines. It also removes
-        any instances of three or more consecutive newlines, replacing them with double newlines.
 
         Args:
             sketchbook (list[str]): A list of strings, each representing a section in the sketchbook.
@@ -634,7 +625,7 @@ class Tools:
                 section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
                 return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
-            case "save_sketchbook_file":
+            case "share_sketchbook_as_a_file":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to save."
                 print("Saving the sketchbook...")
@@ -1029,7 +1020,7 @@ class Tools:
         Returns:
             str: A message indicating the result of the operation.
 
-        Note:
+         Note:
             The function initializes the 'improvements' key in the state if it doesn't exist.
         """
         command = tool_input.get("command")
@@ -1098,7 +1089,7 @@ class Tools:
 
         return f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\nThe full content of the articles has been stored in the archive. Now you must retrieve the information you need from each article in the archive."
 
-    def get_tool_result_save_file(self, tool_input: dict) -> str:
+    def get_tool_result_save_text_file(self, tool_input: dict) -> str:
         """
         Save a text file in output.
 
@@ -1115,16 +1106,38 @@ class Tools:
         """
         filename = tool_input.get("filename")
         content = tool_input.get("content")
-
-        full_path = os.path.join(self.config.OUTPUT_PATH, filename)
-
-        if os.path.exists(full_path):
-            return f"File already exists: {filename}. Please choose a different filename."
-
-        with open(full_path, 'w') as f:
-            f.write(content)
+        print(f"Filename: {filename}")
+        print(f"Content: {content}")
+        
+        try:
+            full_path = os.path.join(self.config.OUTPUT_PATH, filename)
+            if os.path.exists(full_path):
+                return f"File already exists: {filename}. Please choose a different filename."
+            with open(full_path, 'w') as f:
+                f.write(content)
+        except Exception as ex:
+            error_message = f"Error saving file: {ex}"
+            print(error_message)
+            return error_message
 
         return f"File saved: {filename}"
+
+    def get_tool_result_check_if_file_exists(self, tool_input: dict) -> str:
+        """
+        Check if a file exists in the output folder.
+
+        Args:
+            tool_input (dict): A dictionary containing the filename.
+
+        Returns:
+            str: A message indicating the result of the operation.
+        """
+        filename = tool_input.get("filename")
+        full_path = os.path.join(self.config.OUTPUT_PATH, filename)
+        if os.path.exists(full_path):
+            return f"File exists: {filename}"
+        else:
+            return f"File does not exist: {filename}"
 
     def get_tool_result_conversation(self, tool_input: dict) -> str:
         """
@@ -1230,19 +1243,15 @@ class Tools:
         """
         Execute a tool and return its result.
 
-        This function takes a tool use block and the current state, executes the
-        specified tool, and returns the result. It handles tool execution errors
-        by raising a ToolError.
-
         Args:
             tool_use_block (dict): A dictionary containing the tool use information,
-                                including the tool name and input.
+                               including the tool name and input.
 
         Returns:
-            The result of the tool execution.
+            str: The result of the tool execution.
 
         Raises:
-            ToolError: If an invalid tool name is provided.
+            ToolError: If an invalid tool name is provided or if there's an error during tool execution.
         """
         tool_use_name = tool_use_block['name']
 
