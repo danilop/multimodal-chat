@@ -69,6 +69,7 @@ class Tools:
             'duckduckgo_text_search': self.get_tool_result_duckduckgo_text_search,
             'duckduckgo_news_search': self.get_tool_result_duckduckgo_news_search,
             'duckduckgo_maps_search': self.get_tool_result_duckduckgo_maps_search,
+            'duckduckgo_images_search': self.get_tool_result_duckduckgo_images_search,
             'wikipedia_search': self.get_tool_result_wikipedia_search,
             'wikipedia_geodata_search': self.get_tool_result_wikipedia_geodata_search,
             'wikipedia_page': self.get_tool_result_wikipedia_page,
@@ -156,7 +157,7 @@ class Tools:
             tool_input (dict): A dictionary containing the 'keywords' for the search.
 
         Returns:
-            str: XML-tagged output containing the search results and a message about archiving.
+            str: XML-tagged output containing the search results.
 
         Note:
             This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
@@ -168,14 +169,13 @@ class Tools:
             results = DDGS().text(search_keywords, max_results=self.config. MAX_SEARCH_RESULTS)
             output = json.dumps(results)
         except Exception as e:
-            output = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return (
-            between_xml_tag(output, "output")
-            + "\n\nThis result has been stored in the archive for future use."
-        )
+        return between_xml_tag(output, "output")
 
     def get_tool_result_duckduckgo_news_search(self, tool_input: dict) -> str:
         """
@@ -185,7 +185,7 @@ class Tools:
             tool_input (dict): A dictionary containing the 'keywords' for the search.
 
         Returns:
-            str: XML-tagged output containing the search results and a message about archiving.
+            str: XML-tagged output containing the search results.
 
         Note:
             This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
@@ -197,7 +197,9 @@ class Tools:
             results = DDGS().news(search_keywords, max_results=self.config.MAX_SEARCH_RESULTS)
             output = json.dumps(results)
         except Exception as e:
-            output = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         output = output.strip()
         print(f"Output length: {len(output)}")
 
@@ -214,7 +216,7 @@ class Tools:
             tool_input (dict): A dictionary containing the 'keywords' and 'place' for the search.
 
         Returns:
-            str: XML-tagged output containing the search results and a message about archiving.
+            str: XML-tagged output containing the search results.
 
         Note:
             This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
@@ -230,14 +232,13 @@ class Tools:
             )
             output = json.dumps(results)
         except Exception as e:
-            output = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return (
-            between_xml_tag(output, "output")
-            + "\n\nThis result has been stored in the archive for future use."
-        )
+        return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_search(self, tool_input: dict) -> str:
         """
@@ -259,10 +260,40 @@ class Tools:
             results = wikipedia.search(search_query)
             output = json.dumps(results)
         except Exception as e:
-            output = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         output = output.strip()
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
+        return between_xml_tag(output, "output")
+
+    def get_tool_result_duckduckgo_images_search(self, tool_input: dict) -> str:
+        """
+        Perform a DuckDuckGo images search.
+
+        Args:
+            tool_input (dict): A dictionary containing the 'keywords' for the search.
+
+        Returns:
+            str: XML-tagged output containing the search results.
+
+        Note:
+            This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
+            It also adds the search results to the text index for future retrieval.
+        """
+        search_keywords = tool_input["keywords"]
+        print(f"Keywords: {search_keywords}")
+        try:
+            results = DDGS().images(search_keywords, license_image='Share', max_results=self.config.MAX_SEARCH_RESULTS)
+            output = json.dumps(results)
+        except Exception as e:
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
+        output = output.strip()
+        print(f"Output length: {len(output)}")
+
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
@@ -297,7 +328,9 @@ class Tools:
             )
             output = json.dumps(results)
         except Exception as e:
-            output = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         output = output.strip()
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
@@ -326,7 +359,9 @@ class Tools:
             page = wikipedia.page(title=search_title, auto_suggest=False)
             page_text = mark_down_formatting(page.html(), page.url)
         except Exception as e:
-            page_text = str(e)
+            error_message = f"Error: {e}"
+            print(error_message)
+            return error_message
         page_text = page_text.strip()
         print(f"Output length: {len(page_text)}")
         current_date = datetime.now().strftime("%Y-%m-%d")
@@ -685,13 +720,13 @@ class Tools:
             It also keeps track of the checklist items in the state.
         """
 
-        def render_checklist() -> str:
+        def render_checklist(render_between_xml_tag: bool = True) -> str:
             checklist = self.state["checklist"]
             output = ""
             for index, item in enumerate(checklist):
                 item_state = "COMPLETED" if item['completed'] else "TO DO"
                 output += f"{index + 1}. [{item_state}] {item['content']}\n"
-            return between_xml_tag(output, "checklist")
+            return between_xml_tag(output, "checklist") if render_between_xml_tag else output
 
         command = tool_input.get("command")
         content = tool_input.get("content", "")
@@ -723,10 +758,12 @@ class Tools:
                     "completed": False
                 }
                 self.state["checklist"].append(item)
+                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
                 return f"New item added at the end. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
             case "show_items":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
+                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
                 return f"These are the items in the current checklist:\n\n{render_checklist()}"
             case "mark_next_to_do_item_as_completed":
                 if num_items == 0:
@@ -735,6 +772,7 @@ class Tools:
                 if to_do_index is None:
                     return "All items in the checklist are already completed."
                 self.state["checklist"][to_do_index]["completed"] = True
+                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
                 return f"Item number {to_do_index + 1} has been marked as completed. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
             case _:
                 error_message = f"Invalid command: {command}"

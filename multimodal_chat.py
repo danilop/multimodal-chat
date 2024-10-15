@@ -649,6 +649,9 @@ class MultimodalChat:
                     history.pop()
                 continue
 
+        # To clean up dots in the last message
+        yield history
+
 
     def reset_index(self) -> None:
         """

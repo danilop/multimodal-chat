@@ -60,6 +60,7 @@ Here are examples of how to use various tools:
    - DuckDuckGo Text Search: Performs web searches
    - DuckDuckGo News Search: Searches for recent news articles
    - DuckDuckGo Maps Search: Searches for locations and businesses
+   - DuckDuckGo Images Search: Searches for publicly available images
    - Web Browser: Browses websites and retrieves their content
 
 2. **Wikipedia Tools**:

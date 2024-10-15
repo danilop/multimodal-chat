@@ -91,6 +91,26 @@
 	},
 	{
 		"toolSpec": {
+			"name": "duckduckgo_images_search",
+			"description": "DuckDuckGo images search engine. Use this to search for publicly available images.",
+			"inputSchema": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"keywords": {
+							"type": "string",
+							"description": "The search terms to look for."
+						}
+					},
+					"required": [
+						"keywords"
+					]
+				}
+			}
+		}
+	},
+	{
+		"toolSpec": {
 			"name": "wikipedia_search",
 			"description": "Search Wikipedia for pages relete to your query. Returns a list of Wikipedia page titles. Use this tool for Wikipedia content.",
 			"inputSchema": {
@@ -259,7 +279,7 @@
 	{
 		"toolSpec": {
 			"name": "checklist",
-			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item as next (to do it immediately) or at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points.",
+			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item as next (to do it immediately) or at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points. You can add a new item at any time, for example, to improve your answer.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -519,14 +539,14 @@
 	{
 		"toolSpec": {
 			"name": "conversation",
-			"description": "Use this tool to transform content into an entertaining professional conversation between three friendly peers: Ruth (US English), Matthew (US English), and Amy (UK English). Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to two files: a text and an audio file.",
+			"description": "Use this tool to transform content into an entertaining professional conversation between three friendly peers. Choose three peers from this list: Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Ruth (US English), Amy (UK English), and Olivia (Australian English). Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to two files: a text and an audio file.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"conversation": {
 							"type": "string",
-							"description": "The final script of the conversation between Ruth (US English), Matthew (US English), and Amy (UK English). Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"...\" }, ... ]"
+							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"...\" }, ... ]"
 						}
 					},
 					"required": [
