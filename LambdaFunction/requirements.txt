@@ -9,3 +9,4 @@ yfinance
 qrcode
 scikit-learn
 umap-learn
+sympy

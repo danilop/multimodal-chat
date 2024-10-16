@@ -88,7 +88,7 @@ class MultimodalChat:
         with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
 
             output_queue = queue.Queue()
-            
+
             self.state = {
                 "sketchbook": [],
                 "sketchbook_current_page": 0,
@@ -104,7 +104,7 @@ class MultimodalChat:
             gr.Markdown(
                 """
                 # Multimodal Chat
-                Start with the examples.
+                An helpful AI assistant with access to many tools. To learn more, start with the examples.
                 """)
 
             # To enable the copy button
