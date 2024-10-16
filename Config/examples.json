@@ -1,12 +1,13 @@
 [
+    "Which tools can you use?",
+    "What can you do with images?",
+    "Compare Amazon Bedrock and Amazon SageMaker. Look at their product pages.",
+    "Compare today's news on the CNN and BBC websites.",
     "Things to do in London this weekend. Look for specific websites and pages.",
     "Tell me a nice Japanese restaurant in Putney, London.",
-    "Compare today's news on the CNN and BBC websites.",
-    "Compare Amazon Bedrock and Amazon SageMaker. Look at their product pages.",
     "Compare the styles of the directors of Interstellar and Arrival.",
     "How many prime numbers between 1 and 10, 1 and 100, and so on up to one million?",
     "Tell me 10 right triangles with integer lengths and at least one side that is a prime number.",
-    "What can you do with images?",
     "Generate the image of a dog on a bike and of a cat driving a fast car.",
     "Find an image with a dog.",
     "Download an image of the Roman Colosseum.",
@@ -18,5 +19,5 @@
     "Read the history of how Rome was founded from Wikipedia and put it in an audio conversation.",
     "Tell a joke in an audio conversation.",
     "What's the minimum mass for a rocket to reach the Moon? Make a chart.",
-    "Solve this equation: X^3 -x^2 + x - 1 = 0"
+    "Solve this equation: x^3 -x^2 + x - 1 = 0"
 ]

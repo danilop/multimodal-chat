@@ -2,7 +2,7 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts, diagrams, or QR codes, to test Python code, and to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can use these and only these additional modules: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or diagrams written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
+			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts, diagrams, or QR codes, to test Python code, and to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or diagrams written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -14,11 +14,19 @@
 						"number_of_images": {
 							"type": "integer",
 							"description": "The number of images expected in output from this script. If the number of shown images in the script is different from this number, an error is raised."
+						},
+						"install_modules": {
+							"type": "array",
+							"description": "The list of additional Python modules to install. Installations are done in a temporary directory and must be repeated every time you use this tool. The list contains the names of Python modules separated by commas. The list can be empty. For example: ['numpy', 'pandas'] or []. The following modules are already installed: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. ",
+							"items": {
+								"type": "string"
+							}
 						}
 					},
 					"required": [
 						"script",
-						"number_of_images"
+						"number_of_images",
+						"install_modules"
 					]
 				}
 			}

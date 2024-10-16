@@ -3,8 +3,8 @@ import json
 import os
 import re
 import subprocess
-
-from typing import Dict, Any, List
+import sys
+from typing import Dict, Any, List, Optional
 
 TMP_DIR = "/tmp"
 
@@ -60,26 +60,41 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Before running the script
     remove_tmp_contents()
 
-    input_script: str = event.get('input_script', '')
+    output = ""
+    current_env = os.environ.copy()
+
+    input_script = event.get('input_script', '')
     if len(input_script) == 0:
         return {
             'statusCode': 400,
             'body': 'Input script is required'
         }
 
+    install_modules = event.get('install_modules', [])
+    if type(install_modules) == list and len(install_modules) > 0:
+        current_env["PYTHONPATH"] = TMP_DIR
+        try:
+            _ = subprocess.run(f"pip install -U pip setuptools wheel -t {TMP_DIR} --no-cache-dir".split(), capture_output=True, text=True, check=True)
+            for module in install_modules:
+                _ = subprocess.run(f"pip install {module} -t {TMP_DIR} --no-cache-dir".split(), capture_output=True, text=True, check=True)
+        except Exception as e:
+            error_message = f"Error installing {module}: {e}"
+            print(error_message)
+            output += error_message
+
     print(f"Script:\n{input_script}")
     
-    result: subprocess.CompletedProcess = subprocess.run(["python", "-c", input_script], capture_output=True, text=True)
-    output: str = result.stdout + result.stderr
+    result = subprocess.run(["python", "-c", input_script], env=current_env, capture_output=True, text=True)
+    output += result.stdout + result.stderr
 
     # Search for "Show image" lines and convert images to base64
-    images: List[Dict[str, str]] = []
+    images = []
 
-    output_lines: List[str] = output.split('\n')
+    output_lines = output.split('\n')
     for i, line in enumerate(output_lines):
         match: Optional[re.Match] = re.match(r"Show image '(/tmp/.+)'", line)
         if match:
-            image_path: str = match.group(1)
+            image_path = match.group(1)
             try:
                 with open(image_path, "rb") as image_file:
                     image_data: bytes = image_file.read()

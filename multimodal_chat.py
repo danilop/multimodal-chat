@@ -123,6 +123,7 @@ class MultimodalChat:
                     show_label=False,
                     placeholder="Enter your instructions and press enter.",
                     file_count='multiple',
+                    autofocus=True,
                 )
                 gr.ClearButton([chat_input, chatbot], scale=0)
 

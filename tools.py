@@ -111,9 +111,23 @@ class Tools:
             - If images are generated during script execution, they are stored in the image catalog.
         """
         input_script = tool_input["script"]
+        install_modules = tool_input.get("install_modules", [])
+        number_of_images = tool_input.get("number_of_images", 0)
+
+        if type(install_modules) == str:
+            try:
+                install_modules = json.loads(install_modules)
+            except Exception as e:
+                error_message = f"Error: {e}"
+                print(error_message)
+                return error_message
+
         print(f"Script:\n{input_script}")
+        print(f"Install modules: {install_modules}")
+        print(f"Number of images: {number_of_images}")
+
         start_time = time.time()
-        event = {"input_script": input_script}
+        event = {"input_script": input_script, "install_modules": install_modules}
 
         print("Invoking Lambda function...")
         result = self.utils.invoke_lambda_function(self.config.AWS_LAMBDA_FUNCTION_NAME, event) 
@@ -126,14 +140,22 @@ class Tools:
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
         print(f"Elapsed time: {elapsed_time:.2f} seconds")
+
         if len_output == 0:
             warning_message = "No output printed."
             print(warning_message)
             return warning_message
+        
         if len_output > self.config.MAX_OUTPUT_LENGTH:
             output = output[:self.config.MAX_OUTPUT_LENGTH] + "\n... (truncated)"
+
         print(f"Output:\n---\n{output}\n---.")
 
+        if len(images) != number_of_images:
+            warning_message = f"Expected {number_of_images} images, but found {len(images)}"
+            print(warning_message)
+            return f"{output}\n\n{warning_message}"
+        
         for i in images:
             # Extract the image format from the file extension
             image_path = i['path']
