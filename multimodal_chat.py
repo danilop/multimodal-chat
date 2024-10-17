@@ -103,8 +103,8 @@ class MultimodalChat:
 
             gr.Markdown(
                 """
-                # Multimodal Chat
-                An helpful AI assistant with access to many tools. To learn more, start with the examples.
+                # Yet Another Intelligent Assistant (YAIA)
+                A multimodal chat interface with access to many tools. To learn more, start with the examples.
                 """)
 
             # To enable the copy button

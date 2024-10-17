@@ -1,8 +1,10 @@
-# Yet Another Chatbot – A Multimodal Chat Interface
+# Yet Another Intelligent Assistant (YAIA) 
+
+A multimodal chat interface with access to many tools.
 
 ## Description
 
-Yet Another Chatbot is a sophisticated multimodal chat interface powered by advanced AI models and equipped with a variety of tools. This chatbot can:
+YAIA is a sophisticated multimodal chat interface powered by advanced AI models and equipped with a variety of tools. It can:
 
 - Search and browse the web in real-time
 - Query Wikipedia for information
@@ -271,7 +273,7 @@ In this demo:
 
 ## Contributing
 
-Contributions to Yet Another Chatbot are welcome! Please refer to the contributing guidelines for more information on how to submit pull requests, report issues, or request features.
+Contributions to YAIA are welcome! Please refer to the contributing guidelines for more information on how to submit pull requests, report issues, or request features.
 
 ## License
 

@@ -29,7 +29,7 @@ def between_xml_tag(text: str, element: str, attributes: dict|None = None) -> st
 
     Args:
         text (str): The text to be wrapped.
-        element (str): The XML element to use for wrapping.
+        element (str): The XML element to use for wrapping without the angle brackets.
         attributes (dict, optional): Additional attributes to add to the element. Defaults to None.
 
     Returns:

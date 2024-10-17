@@ -547,14 +547,18 @@
 	{
 		"toolSpec": {
 			"name": "conversation",
-			"description": "Use this tool to transform content into an entertaining professional conversation between three friendly peers. Choose three peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Ruth (US English), Amy (UK English), Olivia (Australian English)</voices>. Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to two files: a text and an audio file.",
+			"description": "Use this tool to transform content into an entertaining professional conversation between two to four friendly peers. Use SSML to make the conversation sound natural. Choose two to four peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Amy (UK English), Olivia (Australian English)</voices>. Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to an audio file.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
+						"num_participants": {
+							"type": "integer",
+							"description": "The number of participants in the conversation, between 2 and 4."
+						},
 						"conversation": {
 							"type": "string",
-							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"...\" }, ... ]"
+							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. To make the conversation sound natural, use the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>."
 						}
 					},
 					"required": [

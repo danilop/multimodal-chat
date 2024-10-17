@@ -55,3 +55,4 @@ class Config:
         self.IMAGE_FILTER_PROMPT = config['DEFAULT']['IMAGE_FILTER_PROMPT']
         self.TOOLS_TIMEOUT = config['DEFAULT'].getint('TOOLS_TIMEOUT')
         self.CONVERSATION_VOICES = config['DEFAULT']['CONVERSATION_VOICES'].split(', ')
+        self.CONVERSATION_PAN_RANGE = config['DEFAULT'].getfloat('CONVERSATION_PAN_RANGE')

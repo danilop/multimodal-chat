@@ -3,6 +3,7 @@ import io
 import json
 import os
 import queue
+import random
 import re
 import tempfile
 import time
@@ -693,9 +694,23 @@ class Tools:
                     sketchbook_output = self.render_sketchbook(self.state["sketchbook"])
                 except ImageNotFoundError as e:
                     return str(e)
+                
                 # First Markdown, then other formats
                 response = ""
                 input_format = "md"
+                output_filename = f"{sketchbook_full_absolute_path_without_extension}.{input_format}"
+                output_basename = os.path.basename(output_filename)
+                try:
+                    with open(output_filename, 'w', encoding='utf-8') as f:
+                        f.write(sketchbook_output)
+                    response += f"The sketchbook has been saved as {output_basename}.\n"
+                except Exception as e:
+                    error_message = f"Error: {e}"
+                    print(error_message)
+                    response += f"Error while saving the sketchbook as {input_format}: {error_message}\n"
+                    return response
+
+                # Now proceed with saving as DOCX
                 output_format = "docx"
                 output_filename = f"{sketchbook_full_absolute_path_without_extension}.{output_format}"
                 output_basename = os.path.basename(output_filename)
@@ -1212,7 +1227,9 @@ class Tools:
         Raises:
             Exception: If the conversation content is not valid JSON.
         """
+        num_participants = tool_input.get("num_participants")
         conversation = tool_input.get("conversation")
+        print(f"Number of participants: {num_participants}")
         print(f"Conversation: {conversation}")
 
         if conversation is None or len(conversation) == 0:
@@ -1222,6 +1239,31 @@ class Tools:
             conversation_lines = json.loads(conversation)
         except json.JSONDecodeError:
             raise ToolError("The output conversation is not a valid JSON")
+
+        # conversation_lines = [ { "name": "John", "line": "Hello, how are you?" }, { "name": "Jane", "line": "I'm fine, thank you." } ]
+        # Get unique names from the conversation
+        unique_names = set(line["name"] for line in conversation_lines if "name" in line)
+
+        # Create random panning for each voice
+        pan_range = self.config.CONVERSATION_PAN_RANGE
+        panning = {}
+        positive_count = 0
+        negative_count = 0
+        for name in unique_names:
+            if abs(positive_count - negative_count) <= 1:
+                pan_value = random.uniform(-pan_range, pan_range)
+            elif positive_count > negative_count:
+                pan_value = random.uniform(-pan_range, 0)
+            else:
+                pan_value = random.uniform(0, pan_range)
+            
+            panning[name] = pan_value
+
+            if pan_value >= 0:
+                positive_count += 1
+            else:
+                negative_count += 1
+        print(f"Panning: {panning}")
 
         current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename_without_extension = os.path.join(self.config.OUTPUT_PATH, f"conversation_{current_datetime}")
@@ -1243,11 +1285,11 @@ class Tools:
             name = full_line.get("name")
             line = full_line.get("line")
             
-            print(f"Processing line {index}: {name}: {line}")
+            print(f"Processing line {index + 1}: {name}: {line}")
 
             try:
-                audio_data = self.utils.synthesize_speech(line, name)
-                full_audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_data))
+                audio_data = self.utils.synthesize_speech(line, name, use_ssml=True)
+                full_audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_data)).pan(panning[name])
                 audio_segments[index] = full_audio_segment
             except Exception as ex:
                 raise ToolError(f"Error synthesizing speech: {ex}")

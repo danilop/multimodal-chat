@@ -704,9 +704,6 @@ class Utils:
                         case "file":
                             basename = part
                             filename = self.config.OUTPUT_PATH + basename
-                            print(f"part: {part}")
-                            print(f"filename: {filename}")
-                            print(f"basename: {basename}")
                             result.append({"format": "file", "filename": filename, "description": basename })
                         case _:
                             print(f"Unknown part type: {part_type}")
@@ -917,7 +914,7 @@ class Utils:
                             file_text += f"\n\nExtracted image:\nimage_id: {image['id']}\ndescription: {detailed_description}"
         return file_text
 
-    def synthesize_speech(self, text: str, voice: str) -> str:
+    def synthesize_speech(self, text: str, voice: str, use_ssml: bool = False) -> str:
         """
         Synthesize speech from text using Amazon Polly.
 
@@ -937,6 +934,7 @@ class Utils:
             OutputFormat='mp3',
             VoiceId=voice,
             Text=text,
+            TextType='ssml' if use_ssml else 'text',
         )
         with closing(response["AudioStream"]) as audio_stream:
             audio_data = audio_stream.read()
