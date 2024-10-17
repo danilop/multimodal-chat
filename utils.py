@@ -1048,6 +1048,31 @@ class Utils:
                     
         return cleaned_text
 
+    def remove_all_xml_tags(self, text: str) -> str:
+        """
+        Remove all XML tags from the input text.
+
+        This function removes all XML tags from the input text, leaving only the content.
+        It uses a regular expression to match and remove any XML tag.
+
+        Args:
+            text (str): The input text containing XML tags.
+
+        Returns:
+            str: The text with all XML tags removed.
+
+        Note:
+            This function uses a regular expression for tag removal, which may not be suitable for
+            processing very large XML documents due to performance considerations.
+        """
+        # Regular expression to match any XML tag
+        pattern = r'<[^>]+>'
+        
+        # Remove all XML tags
+        cleaned_text = re.sub(pattern, '', text)
+        
+        return cleaned_text
+
     def remove_specific_xml_tags(self, text: str) -> str:
         """
         Remove specific XML tags and their content from the input text and return a dictionary of removed content.

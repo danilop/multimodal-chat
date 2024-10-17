@@ -513,7 +513,7 @@
 						},
 						"content": {
 							"type": "string",
-							"description": "The text content of the file."
+							"description": "The text content of the file. The content cannot be longer than a thousand words. For long content, use the 'sketchbook' tool."
 						}
 					},
 					"required": [
@@ -558,7 +558,7 @@
 						},
 						"conversation": {
 							"type": "string",
-							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. To make the conversation sound natural, use the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>."
+							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. To make the conversation sound natural, use the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>. When using the <say-as> tag, you can use only the interpret-as one attribute. Possible values are:/n- characters or spell-out: Spells out each letter of the text, as in a-b-c./n- cardinal or number: Interprets the numerical text as a cardinal number, as in 1,234./n- ordinal: Interprets the numerical text as an ordinal number, as in 1,234th./n- digits: Spells out each digit individually, as in 1-2-3-4./n- fraction: Interprets the numerical text as a fraction. This works for both common fractions such as 3/20, and mixed fractions, such as 2 ½./n- unit: Interprets a numerical text as a measurement. The value should be either a number or a fraction followed by a unit with no space in between as in 1/2inch, or by just a unit, as in 1meter./n- date: Interprets the text as a date. The format of the date must be specified with the format attribute. For example, the following formats can be used with the date attribute: 'mdy' Month-day-year, 'dm' Day-month, or'y' Year./n- time: Interprets the numerical text as duration, in minutes and seconds, as in 1'21\"./n- address: Interprets the text as part of a street address./n- expletive: \"Beeps out\" the content included within the tag./n- telephone: Interprets the numerical text as a 7-digit or 10-digit telephone number, as in 2025551212. You can also use this value for handle telephone extensions, as in 2025551212x345. Use all SSML tags as appropried."
 						}
 					},
 					"required": [

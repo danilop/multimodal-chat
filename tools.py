@@ -226,10 +226,7 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return (
-            between_xml_tag(output, "output")
-            + "\n\nThis result has been stored in the archive for future use."
-        )
+        return between_xml_tag(output, "output")
 
     def get_tool_result_duckduckgo_maps_search(self, tool_input: dict) -> str:
         """
@@ -289,6 +286,7 @@ class Tools:
         output = output.strip()
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
+
         return between_xml_tag(output, "output")
 
     def get_tool_result_duckduckgo_images_search(self, tool_input: dict) -> str:
@@ -357,6 +355,7 @@ class Tools:
         output = output.strip()
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
+
         return between_xml_tag(output, "output")
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
@@ -367,7 +366,7 @@ class Tools:
         to Markdown format, and stores it in the text index for future retrieval.
 
         Args:
-            tool_input (dict): A dictionary containing the 'title' key with the Wikipedia page title.
+            tool_input (dict): A dictionary containing the 'title' and 'keywords' keys with the Wikipedia page title and keywords for the search.
         Returns:
             str: A message indicating that the page content has been stored in the archive.
 
@@ -376,8 +375,10 @@ class Tools:
             function to convert HTML to Markdown. It also uses add_to_text_index to store the content
             in the archive with appropriate metadata.
         """
-        search_title = tool_input["title"]
+        search_title = tool_input.get("title", "")
+        keywords = tool_input.get("keywords", "")
         print(f"Title: {search_title}")
+        print(f"Keywords: {keywords}")
         try:
             page = wikipedia.page(title=search_title, auto_suggest=False)
             page_text = mark_down_formatting(page.html(), page.url)
@@ -392,13 +393,18 @@ class Tools:
         metadata_delete = {"wikipedia_page": search_title}
         self.utils.add_to_text_index(page_text, search_title, metadata, metadata_delete)
 
-        summary = self.retrieve_from_archive(search_title, self.state)
+        summary = self.retrieve_from_archive(search_title)
         print(f"Summary length: {len(summary)}")
-        
+
+        keywords_content = self.retrieve_from_archive(keywords)
+        print(f"Keywords content length: {len(keywords_content)}")
+
         output = f"""The full content of the page ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
-            {between_xml_tag(summary, 'summary')}"""
+            {between_xml_tag(summary, 'summary')}
+            Additional information based on your keywords:
+            {between_xml_tag(keywords_content, 'info')}"""
         
         print(f"Output length: {len(output)}")
 
@@ -422,9 +428,11 @@ class Tools:
             It also uses mark_down_formatting to convert HTML to Markdown and add_to_text_index
             to store the content in the archive with appropriate metadata.
         """
-        url = tool_input["url"]
+        url = tool_input.get("url", "")
+        keywords = tool_input.get("keywords", "")
         print(f"URL: {url}")
-
+        print(f"Keywords: {keywords}")
+        
         parsed_url = urlparse(url)
         url_file_extension = os.path.splitext(parsed_url.path)[1].lower().lstrip('.')
 
@@ -471,19 +479,24 @@ class Tools:
         metadata_delete = {"url": url}  # To delete previous content from the same URL
         self.utils.add_to_text_index(page_text, url, metadata, metadata_delete)
         
-        summary = self.retrieve_from_archive(title + " - " + url, self.state)
+        summary = self.retrieve_from_archive(title + " - " + url)
         print(f"Summary length: {len(summary)}")
-        
+
+        keywords_content = self.retrieve_from_archive(keywords)
+        print(f"Keywords content length: {len(keywords_content)}")
+
         output = f"""The full content of the URL ({len(page_text)} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
-            Here is a summary of the page:
-            {between_xml_tag(summary, 'summary')}"""
+            A summary of the page:
+            {between_xml_tag(summary, 'summary')}
+            Additional information based on your keywords:
+            {between_xml_tag(keywords_content, 'info')}"""
         
         print(f"Output length: {len(output)}")
 
         return output
 
-    def retrieve_from_archive(self, query: str, state: dict) -> str:
+    def retrieve_from_archive(self, query: str) -> str:
         """
         Retrieve content from the archive based on given query.
 
@@ -517,11 +530,11 @@ class Tools:
         for value in response["hits"]["hits"]:
             id = value["_id"]
             source = value["_source"]
-            if id not in state["archive"]:
+            if id not in self.state["archive"]:
                 documents += between_xml_tag(json.dumps(source), "document", {"id": id}) + "\n"
-                state["archive"].add(id)
+                self.state["archive"].add(id)
 
-        print(f"Output length: {len(documents)}")
+        print(f"Retrieved documents length: {len(documents)}")
         return between_xml_tag(documents, "documents")
 
     def get_tool_result_retrive_from_archive(self, tool_input: dict) -> str:
@@ -544,7 +557,7 @@ class Tools:
         keywords = tool_input["keywords"]
         print(f"Keywords: {keywords}")
 
-        return self.retrieve_from_archive(keywords, self.state)
+        return self.retrieve_from_archive(keywords)
 
     def get_tool_result_store_in_archive(self, tool_input: dict) -> str:
         """
@@ -1276,7 +1289,7 @@ class Tools:
             line = full_line.get("line")
             if line is None or len(line) == 0:
                 raise ToolError(f"Invalid line: {line}")
-            conversation_text += f"{name}: {line}\n"
+            conversation_text += f"{name}: {self.utils.remove_all_xml_tags(line)}\n"
         open(f"{filename_without_extension}.txt", "w").write(conversation_text)
 
         audio_segments = [AudioSegment.empty() for _ in range(len(conversation_lines))]
