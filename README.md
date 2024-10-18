@@ -19,6 +19,19 @@ YAIA is a sophisticated multimodal chat interface powered by advanced AI models 
 - Track personal improvements
 - Manage checklists for task tracking
 
+## Architecture
+
+These are the main components:
+
+- [Gradio](https://www.gradio.app) 5 for the web interface
+- [Amazon Bedrock](https://aws.amazon.com/bedrock/) to handle conversation and tool use
+- [Anthropic Claude 3.5 Sonnet](https://aws.amazon.com/bedrock/claude/) as main model
+- [Amazon Titan Text and Multimodal Embeddings](https://aws.amazon.com/bedrock/titan) models
+- [Amazon Titan Image Generator](https://aws.amazon.com/bedrock/titan)
+- [OpenSearch](https://opensearch.org) for text and multimodal indexes
+- [Amazon Polly](https://aws.amazon.com/polly/) for voices
+- [AWS Lambda](https://aws.amazon.com/lambda) for the code interpreter
+
 ## Examples
 
 Here are examples of how to use various tools:
@@ -54,7 +67,7 @@ Here are examples of how to use various tools:
     "Here's a suggestion to improve: to improve answers, search for official sources."
 
 11. **Checklist**:
-    "Start a new checklist for a project on implementing a machine learning model."
+    "Start a new checklist to follow a list of tasks one by one."
 
 ## Key Features and Tools
 
@@ -95,7 +108,7 @@ Here are examples of how to use various tools:
    - Store paper content in the archive for easy retrieval
 
 7. **Conversation Generation**:
-   - Transform content into a conversation between three people
+   - Transform content into a conversation between two to four people
    - Generate audio files for the conversation using text-to-speech
 
 8. **File Management**:
