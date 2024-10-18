@@ -443,13 +443,23 @@ class Tools:
             try:
                 with urllib.request.urlopen(url) as response:
                     content = response.read()
-                
-                if url_file_extension in ['.pdf']:
-                    page_text = self.utils.process_pdf_document(content)
+                print(f"Document size: {len(content)}")
+
+                content_as_io_bytes = io.BytesIO(content)
+
+                if url_file_extension == 'pdf':
+                    page_text = self.utils.process_pdf_document(content_as_io_bytes)
+                elif url_file_extension == 'pptx':
+                    page_text = self.utils.process_pptx_document(content_as_io_bytes)
                 else:
-                    page_text = self.utils.process_non_pdf_documents(content)
+                    raise Exception(f"Unsupported document format for browser: {url_file_extension}")
+                
+                title = None
+
             except Exception as e:
-                return f"Error downloading or processing the document: {str(e)}"
+                error_message = f"Error downloading or processing the document: {str(e)}"
+                print(error_message)
+                return error_message
 
         else:
 
@@ -479,8 +489,11 @@ class Tools:
         metadata_delete = {"url": url}  # To delete previous content from the same URL
         self.utils.add_to_text_index(page_text, url, metadata, metadata_delete)
         
-        summary = self.retrieve_from_archive(title + " - " + url)
-        print(f"Summary length: {len(summary)}")
+        if title is not None and len(title) > 0:
+            summary = self.retrieve_from_archive(title + " - " + url)
+            print(f"Summary length: {len(summary)}")
+        else:
+            summary = ""
 
         keywords_content = self.retrieve_from_archive(keywords)
         print(f"Keywords content length: {len(keywords_content)}")
@@ -1090,6 +1103,8 @@ class Tools:
 
         # Convert image bytes to base64
         image = self.utils.store_image(format, image_base64)
+
+        print(f"Image stored: {image}")
 
         return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}"
 

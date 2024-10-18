@@ -198,7 +198,7 @@
 	{
 		"toolSpec": {
 			"name": "browser",
-			"description": "Use this tool to browse and read carefully a web page on the internet. You can then browse the URL links in the response for more information. The web site content is stored in the archive so that you can retieve the information you need. Pass keywords to retrieve specific information from the archive. Use links in the page to browse other pages or other web sites and get more information.",
+			"description": "Use this tool to browse and read carefully a web page on the internet. You can then browse the URL links in the response for more information. The web site content is stored in the archive so that you can retieve the information you need. Pass keywords to retrieve specific information from the archive. Use links in the page to browse other pages or other web sites and get more information. You can also browse links to PDF and PPTX files.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -263,7 +263,7 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or just to take notes will working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section.You must use this tool to write content like articles, blog posts, essays, books, and if you need to take longer notes while working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
