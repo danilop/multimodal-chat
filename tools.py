@@ -47,7 +47,7 @@ class Tools:
     and provides methods to execute various tools based on the tool name and input.
     """
 
-    def __init__(self, config: Config, utils: Utils, state: dict, output_queue: queue.Queue) -> None:
+    def __init__(self, config: Config, utils: Utils, state: dict) -> None:
         """
         Initialize the Tools class with the given configuration, utilities, state, and output queue.
 
@@ -55,13 +55,11 @@ class Tools:
             config (Config): The configuration object.
             utils (Utils): The utility object.
             state (dict): The state of the chatbot.
-            output_queue (queue.Queue): The output queue for the chatbot.
         """
 
         self.config = config
         self.utils = utils
         self.state = state
-        self.output_queue = output_queue
 
         self.tools_json = load_json_config('./Config/tools.json')
 

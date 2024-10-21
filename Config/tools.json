@@ -430,7 +430,7 @@
 	{
 		"toolSpec": {
 			"name": "download_image_into_catalog",
-			"description": "Use this tool to download images from a URL into the image catalog. You can only download freely available images. You can find the link/URL browsing or searching the internet. Wikipedia pages often contain images that you can download.",
+			"description": "Use this tool to download images from a URL into the image catalog. You only download freely available images. You find the link/URL browsing or searching the internet. Wikipedia pages often contain images that you can download.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -450,18 +450,14 @@
 	{
 		"toolSpec": {
 			"name": "personal_improvement",
-			"description": "Use this tool to track suggestions and mistake and to find ways to improve for the future. Collect suggestions or find pratical improvements that will be added to your system prompt. Improvements should be generic and not specific to a single question.",
+			"description": "Use this tool to track suggestions and mistake and to find ways to improve for the future. Collect suggestions or find pratical improvements that will be added to your system prompt. Improvements are generic and not specific to a single question.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "Can be either 'show_improvements' or 'update_improvements'."
-						},
-						"mistake": {
-							"type": "string",
-							"description": "A description of a mistake you just made (optional)."
+							"description": "Can be either 'show_improvements' or 'update_improvements'. When updating improvements, you replace all previous improvements with the new text. Include previous improvements in the updated text to keep them."
 						},
 						"improvements": {
 							"type": "string",
@@ -547,7 +543,7 @@
 	{
 		"toolSpec": {
 			"name": "conversation",
-			"description": "Use this tool to transform content into an entertaining professional conversation between two to four friendly peers. Use SSML to make the conversation sound natural. Choose two to four peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Amy (UK English), Olivia (Australian English)</voices>. Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to an audio file.",
+			"description": "Use this tool to transform content into an entertaining professional conversation between 2 to 4 friendly peers. Use SSML to make the conversation sound natural. Choose between two to four peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Amy (UK English), Olivia (Australian English)</voices>. Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to an audio file.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -558,7 +554,7 @@
 						},
 						"conversation": {
 							"type": "string",
-							"description": "The final script of the conversation. Never mention their names in the script lines. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. To make the conversation sound natural, use the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>. When using the <say-as> tag, you can use only the interpret-as one attribute. Possible values are:/n- characters or spell-out: Spells out each letter of the text, as in a-b-c./n- cardinal or number: Interprets the numerical text as a cardinal number, as in 1,234./n- ordinal: Interprets the numerical text as an ordinal number, as in 1,234th./n- digits: Spells out each digit individually, as in 1-2-3-4./n- fraction: Interprets the numerical text as a fraction. This works for both common fractions such as 3/20, and mixed fractions, such as 2 ½./n- unit: Interprets a numerical text as a measurement. The value should be either a number or a fraction followed by a unit with no space in between as in 1/2inch, or by just a unit, as in 1meter./n- date: Interprets the text as a date. The format of the date must be specified with the format attribute. For example, the following formats can be used with the date attribute: 'mdy' Month-day-year, 'dm' Day-month, or'y' Year./n- time: Interprets the numerical text as duration, in minutes and seconds, as in 1'21\"./n- address: Interprets the text as part of a street address./n- expletive: \"Beeps out\" the content included within the tag./n- telephone: Interprets the numerical text as a 7-digit or 10-digit telephone number, as in 2025551212. You can also use this value for handle telephone extensions, as in 2025551212x345. Use all SSML tags as appropried."
+							"description": "The final script of the conversation. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. Never mention voice names in the script lines. Make the conversation sound natural using the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>. The <say-as> tag can use only the interpret-as attribute with these exact values:/n- characters or spell-out: Spells out each letter of the text, as in a-b-c./n- cardinal or number: Interprets the numerical text as a cardinal number, as in 1,234./n- ordinal: Interprets the numerical text as an ordinal number, as in 1,234th./n- digits: Spells out each digit individually, as in 1-2-3-4./n- fraction: Interprets the numerical text as a fraction./n- unit: Interprets a numerical text as a measurement. The value should be either a number or a fraction followed by a unit with no space in between as in 1/2inch, or by just a unit, as in 1meter./n- date: Interprets the text as a date. The format of the date must be specified with the format attribute. For example, the following formats can be used with the date attribute: 'mdy' Month-day-year, 'dm' Day-month, or'y' Year./n- time: Interprets the numerical text as duration, in minutes and seconds, as in 1'21\"./n- address: Interprets the text as part of a street address./n- expletive: \"Beeps out\" the content included within the tag./n- telephone: Interprets the numerical text as a telephone number. Use all appropriate SSML tags in a line."
 						}
 					},
 					"required": [

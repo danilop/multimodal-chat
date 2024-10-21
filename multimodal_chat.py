@@ -66,6 +66,26 @@ class MultimodalChat:
         if import_images:
             self.utils.import_images(self.config.IMAGE_PATH)
 
+    def reset_state(self) -> None:
+        """
+        Reset the state of the chatbot.
+        """
+
+        if self.state is not None and 'output_queue' in self.state:
+            output_queue = self.state['output_queue']
+        else:
+            output_queue = queue.Queue()
+
+        self.state = {
+            "sketchbook": [],
+            "sketchbook_current_page": 0,
+            "checklist": [],
+            "archive": set(),
+            "documents": {},
+            "improvements": "",
+            "output_queue": output_queue,
+        }
+
     def run(self) -> None:
         """
         Start the chatbot interface using Gradio.
@@ -87,19 +107,9 @@ class MultimodalChat:
 
         with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
 
-            output_queue = queue.Queue()
+            self.reset_state()
 
-            self.state = {
-                "sketchbook": [],
-                "sketchbook_current_page": 0,
-                "checklist": [],
-                "archive": set(),
-                "documents": {},
-                "improvements": "",
-                "output_queue": output_queue,
-            }
-
-            self.tools = Tools(self.config, self.utils, self.state, output_queue)
+            self.tools = Tools(self.config, self.utils, self.state)
 
             gr.Markdown(
                 """
@@ -118,14 +128,12 @@ class MultimodalChat:
             )
 
             # To allow multiple file uploads
-            with gr.Row(equal_height=True):
-                chat_input = gr.MultimodalTextbox(
-                    show_label=False,
-                    placeholder="Enter your instructions and press enter.",
-                    file_count='multiple',
-                    autofocus=True,
-                )
-                gr.ClearButton([chat_input, chatbot], scale=0)
+            chat_input = gr.MultimodalTextbox(
+                show_label=False,
+                placeholder="Enter your instructions and press enter.",
+                file_count='multiple',
+                autofocus=True,
+            )
 
             def add_message(history: list, message):
                 for x in message["files"]:
@@ -142,6 +150,16 @@ class MultimodalChat:
                 return evt.value
             
             chatbot.example_select(add_example, None, chat_input)
+
+            def handle_undo(history, undo_data: gr.UndoData):
+                return history[:undo_data.index], history[undo_data.index]['content']
+
+            chatbot.undo(handle_undo, chatbot, [chatbot, chat_input])
+
+            def handle_retry(history, retry_data: gr.RetryData):
+                yield from self.chat_function(history[:retry_data.index + 1])
+
+            chatbot.retry(handle_retry, chatbot, [chatbot])
 
         abs_image_path = os.path.abspath(self.config.IMAGE_PATH)
         abs_output_path = os.path.abspath(self.config.OUTPUT_PATH)
@@ -610,6 +628,9 @@ class MultimodalChat:
                 return [{"format": "text", "text": error_message}]
             return results
 
+        if len(history) == 1:
+            print("First message, resetting state...")
+            self.reset_state()
         messages = self.format_messages_for_bedrock_converse(history)
         if self.config.STREAMING:
             target_function = self.manage_conversation_flow_stream

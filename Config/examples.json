@@ -11,7 +11,7 @@
     "Tell me the 10 smallest right triangles with integer lengths and at least one side that is a prime number.",
     "Generate the image of a dog on a bike and of a cat driving a fast car.",
     "Find an image with a dog.",
-    "Download an image of the Roman Colosseum.",
+    "Download and show me an image of the Roman Colosseum.",
     "Write a long multi-page article about computing Pi with numerical methods in Python. Run all code snippets and add their outputs and visualizations to the article.",
     "Generate an image for the article's cover.",
     "You're a ML expert. Write a five-page article explaining multimodal embeddings and how they are trained to an audience of software engineers with no ML experience. Look for recent (2024) articles and info on the topic. Start with the index and then write all sections. Add visualizations. Review the article from the perspective of a technical editor.",
