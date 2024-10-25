@@ -54,11 +54,6 @@ class Utils:
 
         Raises:
             Exception: If there's an error in the Bedrock API call.
-
-        Note:
-            - The function uses global variables EMBEDDING_MULTIMODAL_MODEL_ID and EMBEDDING_TEXT_MODEL_ID
-            to determine which model to use.
-            - The bedrock_runtime_client is assumed to be a global or imported variable.
         """
         use_multimodal = False
         body = {}
@@ -69,14 +64,16 @@ class Utils:
             body["inputImage"] = image_base64
 
         if multimodal or 'inputImage' in body:
-            embedding_model_id = self.config.EMBEDDING_MULTIMODAL_MODEL_ID
+            bedrock_runtime_client = self.clients.bedrock_runtime_client_embedding_multimodal_model
+            embedding_model_id = self.config.EMBEDDING_MULTIMODAL_MODEL
             use_multimodal = True
         elif 'inputText' in body:
-            embedding_model_id = self.config.EMBEDDING_TEXT_MODEL_ID
+            bedrock_runtime_client = self.clients.bedrock_runtime_client_embedding_text_model
+            embedding_model_id = self.config.EMBEDDING_TEXT_MODEL
         else:
             return None
 
-        response = self.clients.bedrock_runtime_client.invoke_model(
+        response = bedrock_runtime_client.invoke_model(
             body=json.dumps(body),
             modelId=embedding_model_id,
             accept="application/json", contentType="application/json",
@@ -124,10 +121,6 @@ class Utils:
                 - id: A unique identifier for the image
             image_base64 (str): The base64-encoded string representation of the image
 
-        Note:
-            This function uses the global opensearch_client to interact with OpenSearch.
-            It assumes that MULTIMODAL_INDEX_NAME is defined as a global constant.
-
         Raises:
             Any exceptions raised by the OpenSearch client or the get_embedding function.
 
@@ -166,8 +159,6 @@ class Utils:
 
         Note:
             - If the image already exists in the index, it returns the existing metadata without re-indexing.
-            - The function uses global variables IMAGE_PATH and IMAGE_DESCRIPTION_PROMPT.
-            - It relies on external functions get_image_hash, get_image_by_id, invoke_text_model, and add_to_multimodal_index.
         """
         image_bytes = base64.b64decode(image_base64)
         image_id = self.get_image_hash(image_bytes)
@@ -186,6 +177,10 @@ class Utils:
             print("Image already indexed.")
             return image
         
+        if image is not None:
+            error_message = image
+            return error_message
+                
         # Short description to fit in multimodal embeddings
         image_description = self.get_image_description(image_bytes, image_format)
 
@@ -213,9 +208,6 @@ class Utils:
 
         Returns:
             dict: The decoded output from the Lambda function.
-
-        Note:
-            This function uses the global lambda_client to make the API call.
         """
         try:
             response = self.clients.lambda_client.invoke(
@@ -399,7 +391,7 @@ class Utils:
 
         return image_description
 
-    def get_image_by_id(self, image_id: str, return_base64: bool = False) -> dict|str:
+    def get_image_by_id(self, image_id: str, return_base64: bool = False) -> dict|None|str:
         """
         Retrieve image metadata from the multimodal index by its ID.
 
@@ -420,10 +412,6 @@ class Utils:
         Raises:
             NotFoundError: If the image with the given ID is not found in the index.
             Exception: For any other errors that occur during the retrieval process.
-
-        Note:
-            This function uses the global opensearch_client to interact with OpenSearch
-            and assumes that MULTIMODAL_INDEX_NAME is defined as a global constant.
         """
         try:
             response = self.clients.opensearch_client.get(
@@ -437,9 +425,7 @@ class Utils:
                 image['base64'] = self.get_image_base64(image['filename'], format=image['format'])
             return image
         except NotFoundError:
-            error_message = "Image not found."
-            print(error_message)
-            return error_message
+            return None
         except Exception as ex:
             error_message = f"Error: {ex}"
             print(error_message)
@@ -466,13 +452,9 @@ class Utils:
 
         Raises:
             Exception: Propagates any exceptions not related to throttling.
-
-        Note:
-            This function uses global variables MODEL_ID, MAX_TOKENS, MIN_RETRY_WAIT_TIME, and MAX_RETRY_WAIT_TIME.
-            It also uses the global bedrock_runtime_client for API calls.
         """
         converse_body = {
-            "modelId": self.config.MODEL_ID,
+            "modelId": self.config.TEXT_MODEL,
             "messages": messages,
             "inferenceConfig": {
                 "maxTokens": self.config.MAX_TOKENS,
@@ -494,7 +476,7 @@ class Utils:
 
         while(retry_flag and retry_wait_time <= self.config.MAX_RETRY_WAIT_TIME):
             try:
-                response = self.clients.bedrock_runtime_client.converse(**converse_body)
+                response = self.clients.bedrock_runtime_client_text_model.converse(**converse_body)
                 retry_flag = False
             except Exception as ex:
                 print(ex)
@@ -549,8 +531,7 @@ class Utils:
             5. Prints information about the indexing process.
 
         Note:
-            This function uses global variables opensearch_client, TEXT_INDEX_NAME, and MAX_WORKERS.
-            It also relies on external functions split_text_for_collection and get_embedding.
+            This function relies on external functions split_text_for_collection and get_embedding.
         """
         if metadata_delete is not None:
             # Delete previous content
@@ -689,6 +670,7 @@ class Utils:
         result = []
 
         for i, part in enumerate(parts):
+            part = part.strip()
             match i % 3:
                 case 0:
                     if len(part) > 0:  # Only add non-empty text parts
@@ -998,13 +980,6 @@ class Utils:
         MULTIMODAL_INDEX_NAME index from OpenSearch. If successful, it prints
         the index information in a formatted JSON structure. If an exception
         occurs during the process, it prints the exception details.
-
-        Global variables:
-            opensearch_client: The OpenSearch client used to interact with the index.
-
-        Note:
-            This function assumes that the opensearch_client has been properly
-            initialized and that the MULTIMODAL_INDEX_NAME constant is defined.
         """
         try:
             response = self.clients.opensearch_client.indices.get(index=index_name)
@@ -1092,20 +1067,20 @@ class Utils:
         """
         cleaned_text = text
 
-        tags_to_remove = ['search_quality_reflection', 'search_quality_score', 'image_quality_score'] # , 'thinking']:
+        tags_to_remove = ['search_quality_reflection', 'search_quality_score', 'image_quality_score']
 
         # Remove specific XML tags and their content
         for tag in tags_to_remove:
-            def remove_tag(pattern, cleaned_text):
-                return re.sub(pattern, '', cleaned_text, flags=re.DOTALL)
+            def remove_tag(pattern, original_text):
+                return re.sub(pattern, '', original_text, flags=re.DOTALL)
 
             # Remove closed tags
             pattern = fr'<{tag}>(.*?)</{tag}>'
             cleaned_text = remove_tag(pattern, cleaned_text)
             
             # Remove unclosed tags
-            unclosed_pattern = fr'<{tag}>(.*?)$'
-            cleaned_text = remove_tag(unclosed_pattern, cleaned_text)
+            # unclosed_pattern = fr'<{tag}>(.*?)$'
+            # cleaned_text = remove_tag(unclosed_pattern, cleaned_text)
 
         return cleaned_text
 
@@ -1127,9 +1102,6 @@ class Utils:
 
         Raises:
             Exception: If there's an error during the search process.
-
-        Note:
-            This function uses the global opensearch_client to perform the search.
         """
         try:
             response = self.clients.opensearch_client.search(
@@ -1168,8 +1140,7 @@ class Utils:
             list: A list of dictionaries containing metadata for matching images.
 
         Note:
-            This function uses global variables MULTIMODAL_INDEX_NAME, IMAGE_FILTER_PROMPT,
-            and relies on external functions get_embedding, search_images, with_xml_tag,
+            This function relies on external functions get_embedding, search_images, with_xml_tag,
             and invoke_text_model.
 
         Raises:
@@ -1224,10 +1195,6 @@ class Utils:
                 Each dictionary includes keys such as 'id', 'format', 'filename', and 'description'.
             str: An error message if the reference image is not found or if there's an error in retrieval.
 
-        Note:
-            This function uses global variables MULTIMODAL_INDEX_NAME and relies on external functions
-            get_image_by_id, get_embedding, and search_images.
-
         Raises:
             Any exceptions raised by the called functions are not explicitly handled here.
         """
@@ -1271,8 +1238,7 @@ class Utils:
             str: An error message if there's an issue retrieving the images.
 
         Note:
-            This function uses the global opensearch_client to query the MULTIMODAL_INDEX_NAME.
-            It uses a random score function to ensure randomness in the selection.
+            This function uses a random score function to ensure randomness in the selection.
         """
         query = {
             "size": num,
@@ -1292,11 +1258,6 @@ class Utils:
 
         The function creates the image_path directory if it doesn't exist, processes only files with
         extensions listed in IMAGE_FORMATS, and uses a ThreadPoolExecutor to parallelize the import process.
-
-        Global variables:
-        - opensearch_client: The OpenSearch client used for storing image metadata.
-        - IMAGE_FORMATS: A list of valid image file extensions.
-        - MAX_WORKERS: The maximum number of worker threads for parallel processing.
 
         Returns:
         None
@@ -1351,9 +1312,9 @@ class Utils:
             }
         )
 
-        response = self.clients.bedrock_runtime_client.invoke_model(
+        response = self.clients.bedrock_runtime_client_image_model.invoke_model(
             body=body,
-            modelId=self.config.IMAGE_GENERATION_MODEL_UD,
+            modelId=self.config.IMAGE_GENERATION_MODEL,
         )
 
         response_body = json.loads(response.get("body").read())

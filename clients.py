@@ -3,7 +3,8 @@ import os
 import boto3
 import botocore
 from opensearchpy import OpenSearch
-        
+
+from config import Config
 
 def get_opensearch_client(opensearch_host: str, opensearch_port: int) -> OpenSearch:
     """
@@ -43,12 +44,15 @@ def get_opensearch_client(opensearch_host: str, opensearch_port: int) -> OpenSea
 
 
 class Clients:
-    def __init__(self, aws_region: str, opensearch_host: str, opensearch_port: int):
-        self.opensearch_client = get_opensearch_client(opensearch_host, opensearch_port)
+    def __init__(self, config: Config):
+        self.opensearch_client = get_opensearch_client(config.OPENSEARCH_HOST, config.OPENSEARCH_PORT)
         # AWS SDK for Python (Boto3) clients
         bedrock_config = botocore.config.Config(read_timeout=60, retries={'max_attempts': 3})
-        self.bedrock_runtime_client = boto3.client('bedrock-runtime', region_name=aws_region, config=bedrock_config)
-        self.iam_client = boto3.client('iam', region_name=aws_region)
-        self.lambda_client = boto3.client('lambda', region_name=aws_region)
-        self.polly_client = boto3.client('polly', region_name=aws_region)
+        self.bedrock_runtime_client_text_model = boto3.client('bedrock-runtime', region_name=config.TEXT_MODEL_REGION, config=bedrock_config)
+        self.bedrock_runtime_client_image_model = boto3.client('bedrock-runtime', region_name=config.IMAGE_GENERATION_MODEL_REGION, config=bedrock_config)
+        self.bedrock_runtime_client_embedding_multimodal_model = boto3.client('bedrock-runtime', region_name=config.EMBEDDING_MULTIMODAL_MODEL_REGION, config=bedrock_config)
+        self.bedrock_runtime_client_embedding_text_model = boto3.client('bedrock-runtime', region_name=config.EMBEDDING_TEXT_MODEL_REGION, config=bedrock_config)
+        self.iam_client = boto3.client('iam', region_name=config.TEXT_MODEL_REGION)
+        self.lambda_client = boto3.client('lambda', region_name=config.AWS_LAMBDA_FUNCTION_REGION)
+        self.polly_client = boto3.client('polly', region_name=config.TEXT_MODEL_REGION)
 

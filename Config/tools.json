@@ -2,22 +2,22 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for all math and date/time computations, to generate charts, diagrams, or QR codes, to test Python code, and to get its printed output. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can only save files (temporarily) in /tmp. Add tests and checks to the code to be sure that results are correct. To show images, charts, or diagrams written to /tmp, add a line per image to the script output using this exact format: Show image '<path/filename>'",
+			"description": "Run a Python script. Use this for numerical and symbolical computations, to manipulate dates and times, and to generate charts, diagrams, or QR codes. Your code can access the internet. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can only temporarily save files in /tmp. Add tests and checks to the code to be sure that results are correct.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. It can run for up to 30 seconds. Keep it simple. Keep the running time as low as possible. It's better to run multiple small scripts thaty one that requires more time. Keep the code simple and short and avoid using complex libraries. Don't repeat code and don't repeat yourself (DRY). To show images, charts, or plots written to /tmp, add a line per image to the script output using this exact syntax: Show image '<path/filename>'"
+							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple, elegant, and short. To show images, charts, or plots written to /tmp, print a line per image in output with this syntax: Show image '<path/filename>'"
 						},
 						"number_of_images": {
 							"type": "integer",
-							"description": "The number of images expected in output from this script. If the number of shown images in the script is different from this number, an error is raised."
+							"description": "The number of images expected in output. If the number of shown images is different, an error is raised."
 						},
 						"install_modules": {
 							"type": "array",
-							"description": "The list of additional Python modules to install. Installations are done in a temporary directory and must be repeated every time you use this tool. The list contains the names of Python modules separated by commas. The list can be empty. For example: ['numpy', 'pandas'] or []. The following modules are already installed: <modules>numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. ",
+							"description": "The list of additional Python modules to install. These modules are installed in a temporary directory. Installations must be repeated every time you use this tool. The list contains the names of Python modules separated by commas. The list can be empty. For example: ['numpy', 'pandas'] or []. The following modules are already installed: <modules>requests, beautifulsoup4, numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. ",
 							"items": {
 								"type": "string"
 							}
@@ -263,7 +263,7 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section.You must use this tool to write content like articles, blog posts, essays, books, and if you need to take longer notes while working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
+			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or longer notes while working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -275,6 +275,10 @@
 						"content": {
 							"type": "string",
 							"description": "The content to update the latest read section or to add a new section at the end. Use Markdown to format content. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
+						},
+						"filename": {
+							"type": "string",
+							"description": "The filename (without extension) to use when sharing the sketchbook as a file. I'll append the current date and time to the filename to make it unique."
 						}
 					},
 					"required": [
@@ -311,7 +315,7 @@
 	{
 		"toolSpec": {
 			"name": "generate_image",
-			"description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Do not use this tool when asked to show, search, or find an image. Generate an image only if I explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to me.",
+			"description": "With this tool, you can generate/create a new image based on a text-to-image prompt. Don't use this tool when asked to show, search, or find an image. Don't use this tool for charts or diagrams. Generate an image only if I explicitly asks to generate, create, or draw an image. The output image is stored in the image catalog and is shown to me.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -543,22 +547,28 @@
 	{
 		"toolSpec": {
 			"name": "conversation",
-			"description": "Use this tool to transform content into an entertaining professional conversation between 2 to 4 friendly peers. Use SSML to make the conversation sound natural. Choose between two to four peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Amy (UK English), Olivia (Australian English)</voices>. Never mention their names in the conversation. The conversation is explaining content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to an audio file.",
+			"description": "Use this tool to transform content into an entertaining professional conversation between friendly peers. Choose between 2 to 4 peers from this list: <voices>Ruth (US English), Matthew (US English), Stephen (US English), Danielle (US English), Johanna (US English), Amy (UK English), Olivia (Australian English)</voices>. The conversation explains content in detail by asking and answering questions. Jump straight to the first topic without introductions. Cover all topics in order. The output is written to an audio file.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"num_participants": {
 							"type": "integer",
-							"description": "The number of participants in the conversation, between 2 and 4."
+							"description": "The number of participants in the conversation."
 						},
 						"conversation": {
 							"type": "string",
-							"description": "The final script of the conversation. Use this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. Never mention voice names in the script lines. Make the conversation sound natural using the following SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>. The <say-as> tag can use only the interpret-as attribute with these exact values:/n- characters or spell-out: Spells out each letter of the text, as in a-b-c./n- cardinal or number: Interprets the numerical text as a cardinal number, as in 1,234./n- ordinal: Interprets the numerical text as an ordinal number, as in 1,234th./n- digits: Spells out each digit individually, as in 1-2-3-4./n- fraction: Interprets the numerical text as a fraction./n- unit: Interprets a numerical text as a measurement. The value should be either a number or a fraction followed by a unit with no space in between as in 1/2inch, or by just a unit, as in 1meter./n- date: Interprets the text as a date. The format of the date must be specified with the format attribute. For example, the following formats can be used with the date attribute: 'mdy' Month-day-year, 'dm' Day-month, or'y' Year./n- time: Interprets the numerical text as duration, in minutes and seconds, as in 1'21\"./n- address: Interprets the text as part of a street address./n- expletive: \"Beeps out\" the content included within the tag./n- telephone: Interprets the numerical text as a telephone number. Use all appropriate SSML tags in a line."
+							"description": "The script of the conversation in this JSON format: [ { \"name\": \"...\", \"line\": \"<speak>...</speak>\" }, ... ]. Don't mention participant names in the script lines. Make the conversation sound natural using these SSML tags between the <speak> tags: <break>, <lang>, <mark>, <p>, <s>, <say-as>, <speak>, <sub>, <w>. The <say-as> tag can use only the interpret-as attribute with these exact values:/n- characters or spell-out: Spells out each letter of the text, as in a-b-c./n- cardinal or number: Interprets the numerical text as a cardinal number, as in 1,234./n- ordinal: Interprets the numerical text as an ordinal number, as in 1,234th./n- digits: Spells out each digit individually, as in 1-2-3-4./n- fraction: Interprets the numerical text as a fraction./n- unit: Interprets a numerical text as a measurement. The value should be either a number or a fraction followed by a unit with no space in between as in 1/2inch, or by just a unit, as in 1meter./n- date: Interprets the text as a date. The format of the date must be specified with the format attribute, for example: 'mdy' Month-day-year, 'dm' Day-month, or'y' Year./n- time: Interprets the numerical text as duration, in minutes and seconds, as in 1'21\"./n- address: Interprets the text as part of a street address./n- expletive: \"Beeps out\" the content included within the tag./n- telephone: Interprets the numerical text as a telephone number./nUse all appropriate SSML tags in a line."
+						},
+						"filename": {
+							"type": "string",
+							"description": "The filename (without extension) for the output audio file. I'll append the current date and time to the filename to make it unique."
 						}
 					},
 					"required": [
-						"conversation"
+						"num_participants",
+						"conversation",
+						"filename"
 					]
 				}
 			}

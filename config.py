@@ -6,13 +6,19 @@ class Config:
         config = configparser.ConfigParser()
         config.read('Config/config.ini')
 
+        # Load model IDs and their regions
+        self.TEXT_MODEL = config['MODELS']['TEXT_MODEL']
+        self.IMAGE_GENERATION_MODEL = config['MODELS']['IMAGE_GENERATION_MODEL']
+        self.EMBEDDING_MULTIMODAL_MODEL = config['MODELS']['EMBEDDING_MULTIMODAL_MODEL']
+        self.EMBEDDING_TEXT_MODEL = config['MODELS']['EMBEDDING_TEXT_MODEL']
+
+        self.TEXT_MODEL_REGION = config['MODEL_REGIONS']['TEXT_MODEL']
+        self.IMAGE_GENERATION_MODEL_REGION = config['MODEL_REGIONS']['IMAGE_GENERATION_MODEL']
+        self.EMBEDDING_MULTIMODAL_MODEL_REGION = config['MODEL_REGIONS']['EMBEDDING_MULTIMODAL_MODEL']
+        self.EMBEDDING_TEXT_MODEL_REGION = config['MODEL_REGIONS']['EMBEDDING_TEXT_MODEL']
+
         # Global constants loaded from the config file
         self.STREAMING = config['DEFAULT'].getboolean('STREAMING')
-        self.AWS_REGION = config['DEFAULT']['AWS_REGION']
-        self.MODEL_ID = config['DEFAULT']['MODEL_ID']
-        self.IMAGE_GENERATION_MODEL_UD = config['DEFAULT']['IMAGE_GENERATION_MODEL_UD']
-        self.EMBEDDING_MULTIMODAL_MODEL_ID = config['DEFAULT']['EMBEDDING_MULTIMODAL_MODEL_ID']
-        self.EMBEDDING_TEXT_MODEL_ID = config['DEFAULT']['EMBEDDING_TEXT_MODEL_ID']
         self.IMAGE_PATH = config['DEFAULT']['IMAGE_PATH']
         self.OUTPUT_PATH = config['DEFAULT']['OUTPUT_PATH']
         self.OPENSEARCH_HOST = config['DEFAULT']['OPENSEARCH_HOST']
@@ -29,6 +35,7 @@ class Config:
         self.DEFAULT_IMAGE_WIDTH = config['DEFAULT'].getint('DEFAULT_IMAGE_WIDTH')
         self.DEFAULT_IMAGE_HEIGHT = config['DEFAULT'].getint('DEFAULT_IMAGE_HEIGHT')
         self.AWS_LAMBDA_FUNCTION_NAME = config['DEFAULT']['AWS_LAMBDA_FUNCTION_NAME']
+        self.AWS_LAMBDA_FUNCTION_REGION = config['DEFAULT']['AWS_LAMBDA_FUNCTION_REGION']
         self.MAX_OUTPUT_LENGTH = config['DEFAULT'].getint('MAX_OUTPUT_LENGTH')
         self.HANDLE_DOCUMENT_TO_TEXT_IN_CODE = config['DEFAULT'].getboolean('HANDLE_DOCUMENT_TO_TEXT_IN_CODE')
         self.HANDLE_IMAGES_IN_DOCUMENTS = config['DEFAULT'].getboolean('HANDLE_IMAGES_IN_DOCUMENTS')

@@ -57,7 +57,7 @@ class MultimodalChat:
         # Create OUTPUT_PATH if not exists
         os.makedirs(os.path.dirname(self.config.OUTPUT_PATH), exist_ok=True)
 
-        self.clients = Clients(self.config.AWS_REGION, self.config.OPENSEARCH_HOST, self.config.OPENSEARCH_PORT)
+        self.clients = Clients(self.config)
         self.utils = Utils(self.config, self.clients)
 
         self.utils.create_index(self.config.TEXT_INDEX_NAME, TEXT_INDEX_CONFIG)
@@ -86,6 +86,8 @@ class MultimodalChat:
             "output_queue": output_queue,
         }
 
+        self.tools.set_state(self.state)
+
     def run(self) -> None:
         """
         Start the chatbot interface using Gradio.
@@ -107,9 +109,9 @@ class MultimodalChat:
 
         with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
 
+            self.tools = Tools(self.config, self.utils)
+            
             self.reset_state()
-
-            self.tools = Tools(self.config, self.utils, self.state)
 
             gr.Markdown(
                 """
@@ -117,7 +119,6 @@ class MultimodalChat:
                 A multimodal chat interface with access to many tools. To learn more, start with the examples.
                 """)
 
-            # To enable the copy button
             chatbot = gr.Chatbot(
                 elem_id="chatbot",
                 show_label=False,
@@ -125,9 +126,10 @@ class MultimodalChat:
                 examples=formatted_examples,
                 show_copy_button=True,
                 show_copy_all_button=True,
+                scale=3,
             )
 
-            # To allow multiple file uploads
+                # To allow multiple file uploads
             chat_input = gr.MultimodalTextbox(
                 show_label=False,
                 placeholder="Enter your instructions and press enter.",
@@ -553,7 +555,7 @@ class MultimodalChat:
         while continue_loop:
 
             converse_body = {
-                "modelId": self.config.MODEL_ID,
+                "modelId": self.config.TEXT_MODEL,
                 "messages": messages,
                 "inferenceConfig": {
                     "maxTokens": self.config.MAX_TOKENS,
@@ -572,7 +574,7 @@ class MultimodalChat:
             retry_flag = True
             while retry_flag:
 
-                streaming_response = self.clients.bedrock_runtime_client.converse_stream(**converse_body)
+                streaming_response = self.clients.bedrock_runtime_client_text_model.converse_stream(**converse_body)
 
                 stream_state = {
                     'new_content': '',

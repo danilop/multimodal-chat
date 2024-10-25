@@ -47,7 +47,7 @@ class Tools:
     and provides methods to execute various tools based on the tool name and input.
     """
 
-    def __init__(self, config: Config, utils: Utils, state: dict) -> None:
+    def __init__(self, config: Config, utils: Utils) -> None:
         """
         Initialize the Tools class with the given configuration, utilities, state, and output queue.
 
@@ -59,7 +59,6 @@ class Tools:
 
         self.config = config
         self.utils = utils
-        self.state = state
 
         self.tools_json = load_json_config('./Config/tools.json')
 
@@ -92,6 +91,9 @@ class Tools:
         }
 
         self.check_tools_consistency()
+
+    def set_state(self, state: dict) -> None:
+        self.state = state
 
     def get_tool_result_python(self, tool_input: dict) -> str:
         """
@@ -644,9 +646,12 @@ class Tools:
         """
         command = tool_input.get("command")
         content = tool_input.get("content", "")
+        filename = tool_input.get("filename", "")
         print(f"Command: {command}")
         if len(content) > 0:
             print(f"Content:\n---\n{content}\n---")
+        if len(filename) > 0:
+            print(f"Filename: {filename}")
 
         num_sections = len(self.state["sketchbook"])
 
@@ -710,9 +715,11 @@ class Tools:
             case "share_sketchbook_as_a_file":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to save."
+                if len(filename) == 0:
+                    return "Provide a filename to save the sketchbook as a file."
                 print("Saving the sketchbook...")
                 current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-                sketchbook_filename_without_extension = f"sketchbook_{current_datetime}"
+                sketchbook_filename_without_extension = f"{filename}_{current_datetime}"
                 sketchbook_full_absolute_path_without_extension = os.path.abspath(os.path.join(self.config.OUTPUT_PATH, sketchbook_filename_without_extension))
                 try:
                     sketchbook_output = self.render_sketchbook(self.state["sketchbook"])
@@ -1170,7 +1177,14 @@ class Tools:
                 print(f"Downloading result {i}: {result.entry_id} - {result.title} ...")
                 abstracts[result.entry_id] = result.title + "\n\n" + result.summary
                 filename = f"{i}.pdf"
-                result.download_pdf(dirpath=temp_dir, filename=filename)
+                try:
+                    result.download_pdf(dirpath=temp_dir, filename=filename)
+                except Exception as ex:
+                    error_message = f"Error downloading PDF with filename '{filename}': {ex}"
+                    print(error_message)
+                    print(f"Skipping this result because it might have been withdrawn.")
+                    continue
+
                 full_path = os.path.join(temp_dir, filename)
                 article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
 
@@ -1254,13 +1268,19 @@ class Tools:
             Exception: If the conversation content is not valid JSON.
         """
         num_participants = tool_input.get("num_participants")
-        conversation = tool_input.get("conversation")
+        conversation = tool_input.get("conversation", "")
+        filename = tool_input.get("filename", "")
+
         print(f"Number of participants: {num_participants}")
         print(f"Conversation: {conversation}")
+        print(f"Filename: {filename}")
 
-        if conversation is None or len(conversation) == 0:
+        if len(conversation) == 0:
             return "You need to provide some content in input."
         
+        if len(filename) == 0:
+            return "You need to provide a filename for the output audio file."
+
         try:
             conversation_lines = json.loads(conversation)
         except json.JSONDecodeError:
@@ -1292,7 +1312,7 @@ class Tools:
         print(f"Panning: {panning}")
 
         current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename_without_extension = os.path.join(self.config.OUTPUT_PATH, f"conversation_{current_datetime}")
+        filename_without_extension = os.path.join(self.config.OUTPUT_PATH, f"{filename}_{current_datetime}")
 
         conversation_text = ""
         for full_line in conversation_lines:
