@@ -88,13 +88,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     output += result.stdout + result.stderr
 
     # Search for "Show image" lines and convert images to base64
+    # Also search for "Download file" lines and add file contents to the files list
     images = []
+    files = []
 
     output_lines = output.split('\n')
     for i, line in enumerate(output_lines):
-        match: Optional[re.Match] = re.match(r"Show image '(/tmp/.+)'", line)
-        if match:
-            image_path = match.group(1)
+        image_match: Optional[re.Match] = re.match(r"Show image '(/tmp/.+)'", line)
+        file_match: Optional[re.Match] = re.match(r"Show text file '(/tmp/.+)'", line)
+        
+        if image_match:
+            image_path = image_match.group(1)
             try:
                 with open(image_path, "rb") as image_file:
                     image_data: bytes = image_file.read()
@@ -104,19 +108,34 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     })
             except Exception as e:
                 output_lines[i] = f"Error loading image {image_path}: {str(e)}"
+        
+        elif file_match:
+            file_path = file_match.group(1)
+            file_name = os.path.basename(file_path)
+            try:
+                with open(file_path, "rb") as file:
+                    file_data: bytes = file.read()
+                    files.append({
+                        "name": file_name,
+                        "content": file_data
+                    })
+            except Exception as e:
+                output_lines[i] = f"Error loading file {file_path}: {str(e)}"
 
     output = '\n'.join(output_lines)
 
     print(f"Output: {output}")
     print(f"Len: {len(output)}")
     print(f"Images: {len(images)}")
+    print(f"Files: {len(files)}")
 
     # After running the script
     remove_tmp_contents()
 
     result: Dict[str, Any] = {
         'output': output,
-        'images': images
+        'images': images,
+        'files': files
     }
 
     return {

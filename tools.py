@@ -114,6 +114,7 @@ class Tools:
         input_script = tool_input["script"]
         install_modules = tool_input.get("install_modules", [])
         number_of_images = tool_input.get("number_of_images", 0)
+        number_of_text_files = tool_input.get("number_of_text_files", 0)
 
         if type(install_modules) == str:
             try:
@@ -126,7 +127,7 @@ class Tools:
         print(f"Script:\n{input_script}")
         print(f"Install modules: {install_modules}")
         print(f"Number of images: {number_of_images}")
-
+        print(f"Number of text files: {number_of_text_files}")
         start_time = time.time()
         event = {"input_script": input_script, "install_modules": install_modules}
 
@@ -134,12 +135,14 @@ class Tools:
         result = self.utils.invoke_lambda_function(self.config.AWS_LAMBDA_FUNCTION_NAME, event) 
         output = result.get("output", "")
         images = result.get("images", [])
+        text_files = result.get("files", [])
 
         end_time = time.time()
         elapsed_time = end_time - start_time
         len_output = len(output)
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
+        print(f"Text files: {len(text_files)}")
         print(f"Elapsed time: {elapsed_time:.2f} seconds")
 
         if len_output == 0:
@@ -157,18 +160,26 @@ class Tools:
             print(warning_message)
             return f"{output}\n\n{warning_message}"
         
-        for i in images:
+        if len(text_files) != number_of_text_files:
+            warning_message = f"Expected {number_of_text_files} text files, but found {len(text_files)}"
+            print(warning_message)
+            return f"{output}\n\n{warning_message}"
+
+        for text_file in images:
             # Extract the image format from the file extension
-            image_path = i['path']
+            image_path = text_file['path']
             image_format = os.path.splitext(image_path)[1][1:] # Remove the leading dot
             image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
-            image_base64 = self.utils.get_image_base64(i['base64'],
+            image_base64 = self.utils.get_image_base64(text_file['base64'],
                                             format=image_format,
                                             max_image_size=self.config.MAX_CHAT_IMAGE_SIZE,
                                             max_image_dimension=self.config.MAX_CHAT_IMAGE_DIMENSIONS)
 
             image = self.utils.store_image(image_format, image_base64)
             output += f"\nImage {image_path} has been stored in the image catalog with 'image_id': {image['id']}"
+
+        for text_file in text_files:
+            output += f"{between_xml_tag(text_file['content'], 'file', {'name': text_file['name']})}\n"
 
         return f"{between_xml_tag(output, 'output')}"
 
@@ -779,7 +790,7 @@ class Tools:
 
         Commands:
             - start_new: Initializes a new empty checklist.
-            - add_item_at_the_end: Adds a new item to the checklist.
+            - add_items_at_the_end: Adds a new item to the checklist.
             - show_items: Shows all items in the checklist.
             - mark_next_to_do_item_as_completed: Marks the next to-do item in the checklist as completed.
 
@@ -788,60 +799,72 @@ class Tools:
             It also keeps track of the checklist items in the state.
         """
 
-        def render_checklist(render_between_xml_tag: bool = True) -> str:
+        def render_checklist(render_for_model: bool = True) -> str:
             checklist = self.state["checklist"]
             output = ""
             for index, item in enumerate(checklist):
                 item_state = "COMPLETED" if item['completed'] else "TO DO"
                 output += f"{index + 1}. [{item_state}] {item['content']}\n"
-            return between_xml_tag(output, "checklist") if render_between_xml_tag else output
+            return between_xml_tag(output, "checklist") if render_for_model else output
 
         command = tool_input.get("command")
-        content = tool_input.get("content", "")
+        items = tool_input.get("items", [])
+        num_items_to_mark_as_completed = tool_input.get("n", 0)
 
         print(f"Command: {command}")
-        if len(content) > 0:
-            print(f"Content:\n---\n{content}\n---")
+        if len(items) > 0:
+            print(f"Items:\n---\n{items}\n---")
+        if num_items_to_mark_as_completed > 0:
+            print(f"Number of items to mark as completed: {num_items_to_mark_as_completed}")
 
         num_items = len(self.state["checklist"])
 
         match command:
-            case "start_new":
-                self.state["checklist"] = []
-                return "This is a new checklist. There are no items. Start by adding some content."
-            case "add_item_as_next":
-                if len(content) == 0:
-                    return "You need to provide content to add a new item."
-                item = {
-                    "content": content,
-                    "completed": False
-                }
-                self.state["checklist"].insert(0, item)
-                return f"New item added as next. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
-            case "add_item_at_the_end":
-                if len(content) == 0:
-                    return "You need to provide content to add a new item."
-                item = {
-                    "content": content,
-                    "completed": False
-                }
-                self.state["checklist"].append(item)
-                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
-                return f"New item added at the end. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
+            case "start_new_with_items" | "add_items_as_next":
+                if command == "start_new_with_items":
+                    self.state["checklist"] = []
+                    if len(items) == 0:
+                        return "This is a new empty checklist. Start by adding items."
+                if len(items) == 0:
+                    return "You need to provide items to add."
+                for i in reversed(items):
+                    item = {
+                        "content": i,
+                        "completed": False
+                    }
+                    self.state["checklist"].insert(0, item)
+                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
+                return f"New items added as next. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
+            case "add_items_at_the_end":
+                if len(items) == 0:
+                    return "You need to provide items to add."
+                for i in items:
+                    item = {
+                        "content": i,
+                        "completed": False
+                    }
+                    self.state["checklist"].append(item)
+                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
+                return f"New items added at the end. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
             case "show_items":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
-                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
+                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
                 return f"These are the items in the current checklist:\n\n{render_checklist()}"
-            case "mark_next_to_do_item_as_completed":
+            case "mark_next_n_items_as_completed":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to mark as completed."
-                to_do_index = next((i for i, item in enumerate(self.state["checklist"]) if not item["completed"]), None)
-                if to_do_index is None:
-                    return "All items in the checklist are already completed."
-                self.state["checklist"][to_do_index]["completed"] = True
-                print(f"Checklist:\n{render_checklist(render_between_xml_tag=False)}")
-                return f"Item number {to_do_index + 1} has been marked as completed. Add more items or mark the next to-do item as completed. These are the items in the current checklist:\n\n{render_checklist()}"
+                if num_items_to_mark_as_completed == 0:
+                    return "You need to provide the number of items to mark as completed."
+                if num_items_to_mark_as_completed > num_items:
+                    return f"There are only {num_items} items in the checklist. You can't mark {num_items_to_mark_as_completed} items as completed."
+                for _ in range(num_items_to_mark_as_completed):
+                    to_do_index = next((i for i, item in enumerate(self.state["checklist"]) if not item["completed"]), None)
+                    if to_do_index is None:
+                        break
+                    self.state["checklist"][to_do_index]["completed"] = True
+                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
+                return f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
             case _:
                 error_message = f"Invalid command: {command}"
                 print(error_message)

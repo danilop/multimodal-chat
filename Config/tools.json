@@ -2,18 +2,22 @@
 	{
 		"toolSpec": {
 			"name": "python",
-			"description": "Run a Python script. Use this for numerical and symbolical computations, to manipulate dates and times, and to generate charts, diagrams, or QR codes. Your code can access the internet. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can only temporarily save files in /tmp. Add tests and checks to the code to be sure that results are correct.",
+			"description": "Run a Python script. Use this for numerical and symbolical computations, to manipulate dates and times, and to generate charts, diagrams, or QR codes. Your code can access the internet. You can only see the result if it is printed. Don't use it to run code that I pass to you. You can only (temporarily) save files in /tmp. These files are deleted after the script finishes. Add tests and checks to the code to be sure that results are correct.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple, elegant, and short. To show images, charts, or plots written to /tmp, print a line per image in output with this syntax: Show image '<path/filename>'"
+							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple, elegant, and short./nTo show images, charts, or plots written to /tmp, print a line per image in output with this syntax: Show image '<path/filename>'/nTo show text files written to /tmp, print a line per file in output with this syntax: Show text file '<path/filename>'"
 						},
 						"number_of_images": {
 							"type": "integer",
 							"description": "The number of images expected in output. If the number of shown images is different, an error is raised."
+						},
+						"number_of_text_files": {
+							"type": "integer",
+							"description": "The number of text files expected in output. If the number of shown text files is different, an error is raised."
 						},
 						"install_modules": {
 							"type": "array",
@@ -298,11 +302,18 @@
 					"properties": {
 						"command": {
 							"type": "string",
-							"description": "How to use the checklist, can be 'start_new', 'add_item_as_next', 'add_item_at_the_end', 'show_items', 'mark_next_to_do_item_as_completed'."
+							"description": "How to use the checklist, can be 'start_new_with_items', 'add_items_as_next', 'add_items_at_the_end', 'show_items', 'mark_next_n_items_as_completed'."
 						},
-						"content": {
-							"type": "string",
-							"description": "The content for a new checklist item."
+						"items": {
+							"type": "array",
+							"description": "The list of items to add. The list can contain one or more items.",
+							"items": {
+								"type": "string"
+							}
+						},
+						"n": {
+							"type": "integer",
+							"description": "The number of next to-do items to mark as completed."
 						}
 					},
 					"required": [
