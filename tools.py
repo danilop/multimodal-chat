@@ -534,7 +534,12 @@ class Tools:
             options.add_argument("--window-size=1920,1080")
             
             with webdriver.Chrome(options=options) as driver:
-                driver.get(url)
+                try:
+                    driver.get(url)
+                except Exception as e:
+                    error_message = f"Error navigating to the URL: {e}"
+                    print(error_message)
+                    return error_message
 
                 title = driver.title
                 print(f"Title:", title)
