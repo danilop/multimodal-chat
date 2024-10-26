@@ -8,6 +8,8 @@ class ModelUsage:
         'inputMultimodalTokenCount': 'Embedding multimodal text tokens',
         'inputImageCount': 'Embedding multimodal images',
         'images': 'Generated images',
+        'functionCalls': 'Function calls',
+        'functionApproximateElapsedTime': 'Function approximate elapsed time',
     }
                
     def __init__(self) -> None:

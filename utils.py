@@ -195,7 +195,7 @@ class Utils:
 
         return image
 
-    def invoke_lambda_function(self, function_name: str, event: dict) -> dict:
+    def invoke_lambda_function(self, function_name: str, event: dict) -> tuple[dict, float]:
         """
         Invoke an AWS Lambda function and return its output.
 
@@ -210,21 +210,31 @@ class Utils:
             dict: The decoded output from the Lambda function.
         """
         try:
+            start_time = time.time()
             response = self.clients.lambda_client.invoke(
                 FunctionName=function_name,
                 Payload=json.dumps(event)
             )
         except Exception as e:
+            end_time = time.time()
+            elapsed_time = end_time - start_time
             error_message = f"Error: {e}"
             print(error_message)
-            return { "output": error_message }
+            return { "output": error_message }, elapsed_time
+        finally:
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+        
+        self.usage.update('functionCalls', 1)
+        self.usage.update('functionApproximateElapsedTime', elapsed_time)
+        print(self.usage)
 
         # Get output from response
         payload = response['Payload'].read().decode('utf-8')
         body = json.loads(payload).get('body', '{}')
         result = json.loads(body) # Contains the output (str) and images (list) keys
 
-        return result
+        return result, elapsed_time
 
     def get_image_bytes(self, image_source: str | bytes, format: str = "JPEG", max_image_size: int | None = None, max_image_dimension: int | None = None) -> bytes:
         """
@@ -466,7 +476,8 @@ class Utils:
             converse_body["system"] = [{"text": system_prompt}]
 
         if tools:
-            converse_body["toolConfig"] = {"tools": tools}
+            converse_body["toolConfig"] = {"tools": tools.tools_json}
+
 
         print("Thinking...")
 
@@ -540,13 +551,17 @@ class Utils:
                     "match": metadata_delete
                 }
             }
-            response = self.clients.opensearch_client.delete_by_query(
-                index=self.config.TEXT_INDEX_NAME,
-                body=delete_query,
-            )
-            deleted = response['deleted']
-            if deleted > 0:
-                print(f"Deleted old content: {deleted}")
+            try:
+                response = self.clients.opensearch_client.delete_by_query(
+                    index=self.config.TEXT_INDEX_NAME,
+                    body=delete_query,
+                )
+                deleted = response['deleted']
+                if deleted > 0:
+                    print(f"Deleted previous content: {deleted}")
+            except Exception as ex:
+                error_message = f"Error deleting previous content: {ex}"
+                print(error_message)
 
         def process_chunk(i, chunk, metadata, id):
             formatted_metadata = '\n '.join([f"{key}: {value}" for key, value in metadata.items()])
@@ -568,13 +583,16 @@ class Utils:
         min_chunk_length = min(len(chunk) for chunk in chunks)
         max_chunk_length = max(len(chunk) for chunk in chunks)
         print(f"Embedding {len(chunks)} chunks with min/average/max {min_chunk_length}/{round(avg_chunk_length)}/{max_chunk_length} characters...")
+
         documents = []
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.config.MAX_WORKERS) as executor:
             futures = [executor.submit(process_chunk, i + 1, chunk, metadata, id) for i, chunk in enumerate(chunks)]
 
             for future in concurrent.futures.as_completed(futures):
                 document = future.result()
                 documents.append(document)
+
         print(f"Indexing {len(documents)} chunks...")
 
         success, failed = bulk(

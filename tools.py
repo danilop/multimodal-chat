@@ -47,7 +47,7 @@ class Tools:
     and provides methods to execute various tools based on the tool name and input.
     """
 
-    def __init__(self, config: Config, utils: Utils) -> None:
+    def __init__(self, config: Config, state: dict, utils: Utils) -> None:
         """
         Initialize the Tools class with the given configuration, utilities, state, and output queue.
 
@@ -58,6 +58,7 @@ class Tools:
         """
 
         self.config = config
+        self.state = state
         self.utils = utils
 
         self.tools_json = load_json_config('./Config/tools.json')
@@ -92,10 +93,58 @@ class Tools:
 
         self.check_tools_consistency()
 
-    def set_state(self, state: dict) -> None:
-        self.state = state
+    def check_tools_consistency(self) -> None:
+        """
+        Check the consistency between defined tools and their corresponding functions.
 
-    def get_tool_result_python(self, tool_input: dict) -> str:
+        This function compares the set of tool names defined in the TOOLS global variable
+        with the set of function names in the TOOL_FUNCTIONS dictionary. It ensures that
+        there is a one-to-one correspondence between the defined tools and their
+        implementation functions.
+
+        Raises:
+            Exception: If there is a mismatch between the tools defined in TOOLS
+                    and the functions defined in TOOL_FUNCTIONS.
+
+        Note:
+            This function assumes that TOOLS and TOOL_FUNCTIONS are global variables
+            defined elsewhere in the code.
+        """
+        tools_set = set([ t['toolSpec']['name'] for t in self.tools_json])
+        tool_functions_set = set(self.tool_functions.keys())
+
+        if tools_set != tool_functions_set:
+            raise Exception(f"Tools and tool functions are not consistent: {tools_set} != {tool_functions_set}")
+
+    def get_tool_result(self, tool_use_block: dict) -> str:
+        """
+        Execute a tool and return its result.
+
+        Args:
+            tool_use_block (dict): A dictionary containing the tool use information,
+                               including the tool name and input.
+
+        Returns:
+            str: The result of the tool execution.
+
+        Raises:
+            ToolError: If an invalid tool name is provided or if there's an error during tool execution.
+        """
+        tool_use_name = tool_use_block['name']
+
+        print(f"Tool: {tool_use_name}")
+
+        try:
+            result = self.tool_functions[tool_use_name](tool_use_block['input'])
+            formatted_tool_use_name = '🛠️ ' + tool_use_name.replace('_', ' ').title()
+            if type(result) == tuple:
+                return result[0], formatted_tool_use_name, result[1]
+            else:
+                return result, formatted_tool_use_name, ''
+        except KeyError:
+            raise ToolError(f"Invalid function name: {tool_use_name}")
+
+    def get_tool_result_python(self, tool_input: dict) -> tuple[str, str]:
         """
         Execute a Python script using AWS Lambda and process the result.
 
@@ -111,7 +160,7 @@ class Tools:
             - The output is truncated if it exceeds MAX_OUTPUT_LENGTH from the config.
             - If images are generated during script execution, they are stored in the image catalog.
         """
-        input_script = tool_input["script"]
+        input_script = tool_input.get("script", "")
         install_modules = tool_input.get("install_modules", [])
         number_of_images = tool_input.get("number_of_images", 0)
         number_of_text_files = tool_input.get("number_of_text_files", 0)
@@ -128,17 +177,15 @@ class Tools:
         print(f"Install modules: {install_modules}")
         print(f"Number of images: {number_of_images}")
         print(f"Number of text files: {number_of_text_files}")
-        start_time = time.time()
+
         event = {"input_script": input_script, "install_modules": install_modules}
 
         print("Invoking Lambda function...")
-        result = self.utils.invoke_lambda_function(self.config.AWS_LAMBDA_FUNCTION_NAME, event) 
+        result, elapsed_time = self.utils.invoke_lambda_function(self.config.AWS_LAMBDA_FUNCTION_NAME, event) 
         output = result.get("output", "")
         images = result.get("images", [])
         text_files = result.get("files", [])
 
-        end_time = time.time()
-        elapsed_time = end_time - start_time
         len_output = len(output)
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
@@ -153,17 +200,19 @@ class Tools:
         if len_output > self.config.MAX_OUTPUT_LENGTH:
             output = output[:self.config.MAX_OUTPUT_LENGTH] + "\n... (truncated)"
 
-        print(f"Output:\n---\n{output}\n---.")
+        print(f"Output:\n---\n{output}\n---")
+
+        tool_metadata = f"```python\n{input_script}\n```\n```\nElapsed time: {elapsed_time:.2f} seconds\n```\n```\n{output}```"
 
         if len(images) != number_of_images:
-            warning_message = f"Expected {number_of_images} images, but found {len(images)}"
+            warning_message = f"Expected {number_of_images} images but found {len(images)}."
             print(warning_message)
-            return f"{output}\n\n{warning_message}"
+            return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
         
         if len(text_files) != number_of_text_files:
-            warning_message = f"Expected {number_of_text_files} text files, but found {len(text_files)}"
+            warning_message = f"Expected {number_of_text_files} text files but found {len(text_files)}."
             print(warning_message)
-            return f"{output}\n\n{warning_message}"
+            return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
 
         for text_file in images:
             # Extract the image format from the file extension
@@ -176,12 +225,12 @@ class Tools:
                                             max_image_dimension=self.config.MAX_CHAT_IMAGE_DIMENSIONS)
 
             image = self.utils.store_image(image_format, image_base64)
-            output += f"\nImage {image_path} has been stored in the image catalog with 'image_id': {image['id']}"
+            output += f"\nImage {image_path} has been stored in the image catalog with image_id: {image['id']}"
 
         for text_file in text_files:
             output += f"{between_xml_tag(text_file['content'], 'file', {'name': text_file['name']})}\n"
 
-        return f"{between_xml_tag(output, 'output')}"
+        return f"{between_xml_tag(output, 'output')}", tool_metadata
 
     def get_tool_result_duckduckgo_text_search(self, tool_input: dict) -> str:
         """
@@ -197,7 +246,7 @@ class Tools:
             This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
             It also adds the search results to the text index for future retrieval.
         """
-        search_keywords = tool_input["keywords"]
+        search_keywords = tool_input.get("keywords", "")
         print(f"Keywords: {search_keywords}")
         try:
             results = DDGS().text(search_keywords, max_results=self.config. MAX_SEARCH_RESULTS)
@@ -209,7 +258,7 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}"
 
     def get_tool_result_duckduckgo_news_search(self, tool_input: dict) -> str:
         """
@@ -225,7 +274,7 @@ class Tools:
             This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
             It also adds the search results to the text index for future retrieval.
         """
-        search_keywords = tool_input["keywords"]
+        search_keywords = tool_input.get("keywords", "")
         print(f"Keywords: {search_keywords}")
         try:
             results = DDGS().news(search_keywords, max_results=self.config.MAX_SEARCH_RESULTS)
@@ -237,7 +286,7 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}"
 
     def get_tool_result_duckduckgo_maps_search(self, tool_input: dict) -> str:
         """
@@ -253,8 +302,8 @@ class Tools:
             This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
             It also adds the search results to the text index for future retrieval.
         """
-        search_keywords = tool_input["keywords"]
-        search_place = tool_input["place"]
+        search_keywords = tool_input.get("keywords", "")
+        search_place = tool_input.get("place", "")
         print(f"Keywords: {search_keywords}")
         print(f"Place: {search_place}")
         try:
@@ -269,7 +318,7 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}\nPlace: {search_place}"
 
     def get_tool_result_wikipedia_search(self, tool_input: dict) -> str:
         """
@@ -285,7 +334,7 @@ class Tools:
             This function uses the Wikipedia API to perform the search and returns
             the results as a JSON string wrapped in XML tags.
         """
-        search_query = tool_input["query"]
+        search_query = tool_input.get("query", "")
         print(f"Query: {search_query}")
         try:
             results = wikipedia.search(search_query)
@@ -298,7 +347,7 @@ class Tools:
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Query: {search_query}\nOutput: {output}"
 
     def get_tool_result_duckduckgo_images_search(self, tool_input: dict) -> str:
         """
@@ -314,7 +363,7 @@ class Tools:
             This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
             It also adds the search results to the text index for future retrieval.
         """
-        search_keywords = tool_input["keywords"]
+        search_keywords = tool_input.get("keywords", "")
         print(f"Keywords: {search_keywords}")
         try:
             results = DDGS().images(search_keywords, license_image='Share', max_results=self.config.MAX_SEARCH_RESULTS)
@@ -326,7 +375,7 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}\nOutput: {output}"
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
         """
@@ -346,10 +395,10 @@ class Tools:
             This function uses the Wikipedia API to perform a geosearch and returns
             the results as a JSON string wrapped in XML tags.
         """
-        latitude = tool_input["latitude"]
-        longitude = tool_input["longitude"]
-        search_title = tool_input.get("title")  # Optional
-        radius = tool_input.get("radius")  # Optional
+        latitude = tool_input.get("latitude", "")
+        longitude = tool_input.get("longitude", "")
+        search_title = tool_input.get("title", "")  # Optional
+        radius = tool_input.get("radius", "")  # Optional
         print(f"Latitude: {latitude}")
         print(f"Longitude: {longitude}")
         print(f"Title: {search_title}")
@@ -367,7 +416,7 @@ class Tools:
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output")
+        return between_xml_tag(output, "output"), f"Latitude: {latitude}\nLongitude: {longitude}\nTitle: {search_title}\nRadius: {radius}\nOutput: {output}"
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
         """
@@ -419,7 +468,7 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        return output
+        return output, f"Title: {search_title}\nKeywords: {keywords}"
 
     def get_tool_result_browser(self, tool_input: dict) -> str:
         """
@@ -444,6 +493,11 @@ class Tools:
         print(f"URL: {url}")
         print(f"Keywords: {keywords}")
         
+        if not url.startswith("https://"):
+            error_message = "The URL must start with 'https://'."
+            print(error_message)
+            return error_message
+
         parsed_url = urlparse(url)
         url_file_extension = os.path.splitext(parsed_url.path)[1].lower().lstrip('.')
 
@@ -518,7 +572,7 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        return output
+        return output, f"URL: {url}\nKeywords: {keywords}"
 
     def retrieve_from_archive(self, query: str) -> str:
         """
@@ -578,10 +632,10 @@ class Tools:
             This function uses the utils.get_text_catalog_search method to search the text index.
             It also keeps track of the archive ids in the state to avoid duplicates.
         """
-        keywords = tool_input["keywords"]
+        keywords = tool_input.get("keywords", "")
         print(f"Keywords: {keywords}")
 
-        return self.retrieve_from_archive(keywords)
+        return self.retrieve_from_archive(keywords), f"Keywords: {keywords}"
 
     def get_tool_result_store_in_archive(self, tool_input: dict) -> str:
         """
@@ -599,7 +653,7 @@ class Tools:
         Note:
             This function uses the utils.add_to_text_index method to store the content in the archive.
         """
-        content = tool_input["content"]
+        content = tool_input.get("content", "")
         if len(content) == 0:
             return "You need to provide content to store in the archive."
         else:
@@ -610,9 +664,9 @@ class Tools:
         id = uuid.uuid4()
         self.utils.add_to_text_index(content, id, metadata)
 
-        return "The content has been stored in the archive."
+        return "The content has been stored in the archive.", f"Content: {content}"
 
-    def render_sketchbook(self, sketchbook: list[str]) -> str:
+    def render_sketchbook(self, title: str) -> str:
         """
         Render a sketchbook as a single string, optionally using a new path for images.
 
@@ -622,7 +676,8 @@ class Tools:
         Returns:
             str: A single string containing all sketchbook sections, properly formatted.
         """
-        
+
+        sketchbook = self.state["sketchbook"][title]
         processed_sketchbook = [self.utils.process_image_placeholders_for_file(section) for section in sketchbook]
 
         rendered_sketchbook = "\n\n".join(processed_sketchbook)
@@ -655,23 +710,42 @@ class Tools:
             This function uses the utils.render_sketchbook method to render the sketchbook.
             It also keeps track of the sketchbook sections in the state.
         """
-        command = tool_input.get("command")
+        title = tool_input.get("title", "")
+        command = tool_input.get("command", "")
         content = tool_input.get("content", "")
         filename = tool_input.get("filename", "")
+        print(f"Title: {title}")
         print(f"Command: {command}")
         if len(content) > 0:
             print(f"Content:\n---\n{content}\n---")
         if len(filename) > 0:
             print(f"Filename: {filename}")
 
-        num_sections = len(self.state["sketchbook"])
+        if not title in self.state["sketchbook"]:
+            self.state["sketchbook"][title] = []
+            self.state["sketchbook_current_section"][title] = 0
 
+        num_sections = len(self.state["sketchbook"][title])
+
+        def get_sketchbook_info() -> str:
+            sketchbook = self.state["sketchbook"][title]
+            num_words = sum(len(section.split()) for section in sketchbook)
+            num_characters = sum(len(section) for section in sketchbook)
+            return f"The sketchbook has {num_sections} sections / {num_words} words / {num_characters} characters."
+
+        def get_tool_metadata() -> str:
+            return f"Title: {title}\nCommand: {command.replace('_', ' ').capitalize()}\n{get_sketchbook_info()}"
+        
         match command:
-            case "start_new":
-                self.state["sketchbook"] = []
-                self.state["sketchbook_current_section"] = 0
-                return "This is a new sketchbook. There are no sections. Start by adding some content."
-            case "add_section_at_the_end":
+            case "info":
+                return get_sketchbook_info(), get_tool_metadata()
+            case "start_new_with_content" | "add_section_at_the_end":
+                if command == "start_new_with_content":
+                    self.state["sketchbook"][title] = []
+                    self.state["sketchbook_current_section"][title] = 0
+                    command_message = f"This is a new sketchbook with title '{title}'."
+                else:
+                    command_message = f"A new section has been added at the end of the sketchbook '{title}'."
                 if len(content) == 0:
                     return "You need to provide content to add a new section."
                 try:
@@ -680,24 +754,24 @@ class Tools:
                     error_message = f"Section not added. Error: {e}"
                     print(error_message)
                     return error_message
-                self.state["sketchbook"].append(content)
-                num_sections = len(self.state["sketchbook"])
-                self.state["sketchbook_current_section"] = num_sections - 1
-                return f"New section added at the end. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user."
+                self.state["sketchbook"][title].append(content)
+                num_sections = len(self.state["sketchbook"][title])
+                self.state["sketchbook_current_section"][title] = num_sections - 1
+                return f"{command_message}. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user.\n{get_sketchbook_info()}", get_tool_metadata()
             case "start_review":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to review or update. Start by adding some content."
-                self.state["sketchbook_current_section"] = 0
-                section_content = self.state["sketchbook"][0]
+                self.state["sketchbook_current_section"][title] = 0
+                section_content = self.state["sketchbook"][title][0]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section")
-                return f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
+                return f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
             case "next_section":
-                if self.state["sketchbook_current_section"] >= num_sections - 1:
-                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. Start a review or save the sketchbook for the user."
-                self.state["sketchbook_current_section"] += 1
-                section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
-                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
-                return f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
+                if self.state["sketchbook_current_section"][title] >= num_sections - 1:
+                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Start a review or save the sketchbook for the user."
+                self.state["sketchbook_current_section"][title] += 1
+                section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
+                return f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
             case "update_current_section":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections. Start by adding some content."
@@ -709,20 +783,20 @@ class Tools:
                     error_message = f"Section not updated. Error: {e}"
                     print(error_message)
                     return error_message
-                self.state["sketchbook"][self.state["sketchbook_current_section"]] = content
-                return f"The current section has been updated with the new content."
+                self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]] = content
+                return f"The current section has been updated with the new content.\n{get_sketchbook_info()}", get_tool_metadata()
             case "delete_current_section":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to delete."
-                self.state["sketchbook"].pop(self.state["sketchbook_current_section"])
-                num_sections = len(self.state["sketchbook"])
+                self.state["sketchbook"][title].pop(self.state["sketchbook_current_section"][title])
+                num_sections = len(self.state["sketchbook"][title])
                 if num_sections == 0:
                     return "The section has been deleted. The sketchbook is now empty."
-                if self.state["sketchbook_current_section"] >= num_sections - 1:
-                    self.state["sketchbook_current_section"] -= 1
-                section_content = self.state["sketchbook"][self.state["sketchbook_current_section"]]
-                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"]})
-                return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end."
+                if self.state["sketchbook_current_section"][title] >= num_sections - 1:
+                    self.state["sketchbook_current_section"][title] -= 1
+                section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
+                return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
             case "share_sketchbook_as_a_file":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to save."
@@ -733,7 +807,7 @@ class Tools:
                 sketchbook_filename_without_extension = f"{filename}_{current_datetime}"
                 sketchbook_full_absolute_path_without_extension = os.path.abspath(os.path.join(self.config.OUTPUT_PATH, sketchbook_filename_without_extension))
                 try:
-                    sketchbook_output = self.render_sketchbook(self.state["sketchbook"])
+                    sketchbook_output = self.render_sketchbook(title)
                 except ImageNotFoundError as e:
                     return str(e)
                 
@@ -771,7 +845,7 @@ class Tools:
                     response += f"Error while saving the sketchbook as {output_format}: {error_message}\n"
                     return response
                                                         
-                return f"The sketchbook has been saved as {output_basename}.\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
+                return f"The sketchbook has been saved as {output_basename}.\n{get_sketchbook_info()}\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]", get_tool_metadata()
             case _:
                 return "Invalid command."
 
@@ -799,30 +873,44 @@ class Tools:
             It also keeps track of the checklist items in the state.
         """
 
-        def render_checklist(render_for_model: bool = True) -> str:
-            checklist = self.state["checklist"]
-            output = ""
-            for index, item in enumerate(checklist):
-                item_state = "COMPLETED" if item['completed'] else "TO DO"
-                output += f"{index + 1}. [{item_state}] {item['content']}\n"
-            return between_xml_tag(output, "checklist") if render_for_model else output
-
-        command = tool_input.get("command")
+        title = tool_input.get("title", "")
+        command = tool_input.get("command", "")
         items = tool_input.get("items", [])
         num_items_to_mark_as_completed = tool_input.get("n", 0)
 
+        print(f"Title: {title}")
         print(f"Command: {command}")
         if len(items) > 0:
             print(f"Items:\n---\n{items}\n---")
         if num_items_to_mark_as_completed > 0:
             print(f"Number of items to mark as completed: {num_items_to_mark_as_completed}")
 
-        num_items = len(self.state["checklist"])
+        if len(title) == 0:
+            return "You need to provide a title for the checklist."
+        
+        if not title in self.state["checklist"]:
+            self.state["checklist"][title] = []
+
+        def render_checklist(render_for_model: bool = True) -> str:
+            checklist = self.state["checklist"][title]
+            if render_for_model:
+                output = f"Checklist: {title}\n"
+            else:
+                output = f"{title.replace('_', ' ').capitalize()}\n"
+            for index, item in enumerate(checklist):
+                if render_for_model:
+                    item_state = "COMPLETED" if item['completed'] else "TO DO"
+                else:
+                    item_state = "X" if item['completed'] else " "
+                output += f"{index + 1:>2}. [{item_state}] {item['content']}\n"
+            return between_xml_tag(output, "checklist") if render_for_model else output
+
+        num_items = len(self.state["checklist"][title])
 
         match command:
             case "start_new_with_items" | "add_items_as_next":
                 if command == "start_new_with_items":
-                    self.state["checklist"] = []
+                    self.state["checklist"][title] = []
                     if len(items) == 0:
                         return "This is a new empty checklist. Start by adding items."
                 if len(items) == 0:
@@ -832,9 +920,9 @@ class Tools:
                         "content": i,
                         "completed": False
                     }
-                    self.state["checklist"].insert(0, item)
+                    self.state["checklist"][title].insert(0, item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"New items added as next. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
+                return f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
             case "add_items_at_the_end":
                 if len(items) == 0:
                     return "You need to provide items to add."
@@ -843,14 +931,14 @@ class Tools:
                         "content": i,
                         "completed": False
                     }
-                    self.state["checklist"].append(item)
+                    self.state["checklist"][title].append(item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"New items added at the end. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
+                return f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
             case "show_items":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"These are the items in the current checklist:\n\n{render_checklist()}"
+                return f"These are the items in the current checklist:\n\n{render_checklist(title)}", render_checklist(render_for_model=False)
             case "mark_next_n_items_as_completed":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to mark as completed."
@@ -859,12 +947,12 @@ class Tools:
                 if num_items_to_mark_as_completed > num_items:
                     return f"There are only {num_items} items in the checklist. You can't mark {num_items_to_mark_as_completed} items as completed."
                 for _ in range(num_items_to_mark_as_completed):
-                    to_do_index = next((i for i, item in enumerate(self.state["checklist"]) if not item["completed"]), None)
+                    to_do_index = next((i for i, item in enumerate(self.state["checklist"][title]) if not item["completed"]), None)
                     if to_do_index is None:
                         break
-                    self.state["checklist"][to_do_index]["completed"] = True
+                    self.state["checklist"][title][to_do_index]["completed"] = True
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed. The current checklist:\n\n{render_checklist()}"
+                return f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
             case _:
                 error_message = f"Invalid command: {command}"
                 print(error_message)
@@ -889,8 +977,13 @@ class Tools:
             This function uses the utils.generate_image method to generate the image.
             It also keeps track of the generated image in the state.
         """
-        prompt = tool_input["prompt"]
+        prompt = tool_input.get("prompt", "")
         print(f"Prompt: {prompt}")
+
+        if len(prompt) == 0:
+            error_message = "You need to provide a prompt to generate an image."
+            print(error_message)
+            return error_message
 
         try:
             response_body = self.utils.generate_image(prompt)
@@ -912,7 +1005,7 @@ class Tools:
         print(f"Image base64 size: {len(image_base64)}")
         image = self.utils.store_image(image_format, image_base64)
 
-        return f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\nDon't mention the 'image_id' in your response."
+        return f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\nDon't mention the 'image_id' in your response.", f"Prompt: {prompt}"
 
     def get_tool_result_search_image_catalog(self, tool_input: dict) -> str:
         """
@@ -948,7 +1041,7 @@ class Tools:
         if len(result) == 0:
             return f"No images found."
         result = f"These are images similar to the description in descreasing order of similarity:\n{result}"
-        return result
+        return result, f"Description: {description}\nMax results: {max_results}"
 
     def get_tool_result_similarity_image_catalog(self, tool_input: dict) -> str:
         """
@@ -986,7 +1079,7 @@ class Tools:
         if len(result) == 0:
             return f"No similar images found."
         result = f"These are images similar to the reference image in descreasing order of similarity:\n{result}"
-        return result
+        return result, f"Image ID: {image_id}\nMax results: {max_results}"
 
     def get_tool_result_random_images(self, tool_input: dict) -> str:
         """
@@ -1017,7 +1110,7 @@ class Tools:
         if len(result) == 0:
             return f"No random images returned."
         result = f"These are random images from the image catalog:\n{result}"
-        return result
+        return result, f"Num: {num}"
 
     def get_tool_result_get_image_by_id(self, tool_input: dict) -> str:
         """
@@ -1034,7 +1127,7 @@ class Tools:
         image = self.utils.get_image_by_id(image_id)
         if type(image) is not dict:
             return f"Error: Image not found."  # It's an error
-        return f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}"
+        return f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}", f"Image description: {image['description']}"
 
     def get_tool_result_image_catalog_count(self, _tool_input: dict) -> int | str:
         """
@@ -1057,7 +1150,7 @@ class Tools:
             info = self.utils.get_image_catalog_count_info()
             print(f"Image catalog info: {info}")
             count = info["count"]
-            return count
+            return count, f"Image catalog info: {info}"
         except Exception as ex:
             error_message = f"Error: {ex}"
             print(error_message)
@@ -1088,10 +1181,13 @@ class Tools:
         Note:
             This function uses the utils.get_image_base64 method to download the image.
         """
-        url = tool_input.get("url")
+        url = tool_input.get("url", "")
         print(f"URL: {url}")
-        if url is None:
-            return "You need to provide a URL."
+        
+        if not url.startswith("https://"):
+            error_message = "The URL must start with 'https://'."
+            print(error_message)
+            return error_message
 
         # Get the image format from the content type, do an http HEAD to the url using urllib
         req = urllib.request.Request(url, method="HEAD")
@@ -1134,7 +1230,7 @@ class Tools:
 
         print(f"Image stored: {image}")
 
-        return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}"
+        return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}", f"URL: {url}\nImage description: {image['description']}"
 
     def get_tool_result_personal_improvement(self, tool_input: dict) -> str:
         """
@@ -1160,10 +1256,10 @@ class Tools:
         print(f"Improvements: {improvements}")
         match command:
             case 'show_improvements':
-                return f"These are the current improvements:\n{self.state['improvements']}"
+                return f"These are the current improvements:\n{self.state['improvements']}", f"Command: {command}\nImprovements: {improvements}"
             case 'update_improvements':
                 self.state['improvements']= improvements
-                return"Improvement updated."
+                return "Improvement updated.", f"Command: {command}\nImprovements: {improvements}"
             case _:
                 return "Invalid command."
 
@@ -1195,9 +1291,12 @@ class Tools:
 
         abstracts = {}
 
+        tool_metadata = f"Query: {query}\nMax results: {max_results}"
+
         with tempfile.TemporaryDirectory() as temp_dir:
             for i, result in enumerate(arxiv_client.results(search)):
                 print(f"Downloading result {i}: {result.entry_id} - {result.title} ...")
+                tool_metadata += f"\n{i + 1:>2}. {result.entry_id} - {result.title}"
                 abstracts[result.entry_id] = result.title + "\n\n" + result.summary
                 filename = f"{i}.pdf"
                 try:
@@ -1225,7 +1324,12 @@ class Tools:
 
         print(f"Abstracts length: {len(all_abstracts)}")
 
-        return f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\nThe full content of the articles has been stored in the archive. Now you must retrieve the information you need from each article in the archive."
+        query_content = self.retrieve_from_archive(query)
+        query_content = between_xml_tag(query_content, 'documents')
+
+        print(f"Query content length: {len(query_content)}")
+
+        return f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\n{query_content}\n\nThe full content of the articles has been stored in the archive. You must retrieve the information you need from each article in the archive.", tool_metadata
 
     def get_tool_result_save_text_file(self, tool_input: dict) -> str:
         """
@@ -1258,7 +1362,7 @@ class Tools:
             print(error_message)
             return error_message
 
-        return f"File saved: {filename}"
+        return f"File saved: {filename}", f"Filename: {filename}\nContent: {content}"
 
     def get_tool_result_check_if_file_exists(self, tool_input: dict) -> str:
         """
@@ -1273,9 +1377,9 @@ class Tools:
         filename = tool_input.get("filename")
         full_path = os.path.join(self.config.OUTPUT_PATH, filename)
         if os.path.exists(full_path):
-            return f"File exists: {filename}"
+            return f"File exists: {filename}", f"Filename: {filename}"
         else:
-            return f"File does not exist: {filename}"
+            return f"File does not exist: {filename}", f"Filename: {filename}"
 
     def get_tool_result_conversation(self, tool_input: dict) -> str:
         """
@@ -1385,50 +1489,4 @@ class Tools:
 
         output_basename = os.path.basename(output_filename)
 
-        return f"The output conversation has been saved as an audio file ({output_basename}, {full_audio_segment.duration_seconds} seconds).\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
-
-    def check_tools_consistency(self) -> None:
-        """
-        Check the consistency between defined tools and their corresponding functions.
-
-        This function compares the set of tool names defined in the TOOLS global variable
-        with the set of function names in the TOOL_FUNCTIONS dictionary. It ensures that
-        there is a one-to-one correspondence between the defined tools and their
-        implementation functions.
-
-        Raises:
-            Exception: If there is a mismatch between the tools defined in TOOLS
-                    and the functions defined in TOOL_FUNCTIONS.
-
-        Note:
-            This function assumes that TOOLS and TOOL_FUNCTIONS are global variables
-            defined elsewhere in the code.
-        """
-        tools_set = set([ t['toolSpec']['name'] for t in self.tools_json])
-        tool_functions_set = set(self.tool_functions.keys())
-
-        if tools_set != tool_functions_set:
-            raise Exception(f"Tools and tool functions are not consistent: {tools_set} != {tool_functions_set}")
-
-    def get_tool_result(self, tool_use_block: dict) -> str:
-        """
-        Execute a tool and return its result.
-
-        Args:
-            tool_use_block (dict): A dictionary containing the tool use information,
-                               including the tool name and input.
-
-        Returns:
-            str: The result of the tool execution.
-
-        Raises:
-            ToolError: If an invalid tool name is provided or if there's an error during tool execution.
-        """
-        tool_use_name = tool_use_block['name']
-
-        print(f"Tool: {tool_use_name}")
-
-        try:
-            return self.tool_functions[tool_use_name](tool_use_block['input'])
-        except KeyError:
-            raise ToolError(f"Invalid function name: {tool_use_name}")
+        return f"The output conversation has been saved as an audio file ({output_basename}, {full_audio_segment.duration_seconds} seconds).\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]", f"Filename: {output_filename}\nDuration: {full_audio_segment.duration_seconds} seconds"

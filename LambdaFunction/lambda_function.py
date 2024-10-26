@@ -94,8 +94,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     output_lines = output.split('\n')
     for i, line in enumerate(output_lines):
-        image_match: Optional[re.Match] = re.match(r"Show image '(/tmp/.+)'", line)
-        file_match: Optional[re.Match] = re.match(r"Show text file '(/tmp/.+)'", line)
+        image_match: Optional[re.Match] = re.match(r"Get image '(/tmp/.+)'", line)
+        file_match: Optional[re.Match] = re.match(r"Get text file '(/tmp/.+)'", line)
         
         if image_match:
             image_path = image_match.group(1)

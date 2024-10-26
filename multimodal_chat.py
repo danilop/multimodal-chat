@@ -6,6 +6,7 @@ import os
 import queue
 import re
 import threading
+import traceback
 import urllib3
 
 from datetime import datetime
@@ -49,8 +50,6 @@ class MultimodalChat:
         """
         self.config = Config()
 
-        self.state = None # It is initialized in the run() method
-
         # Create IMAGES_PATH if not exists
         os.makedirs(os.path.dirname(self.config.IMAGE_PATH), exist_ok=True)
 
@@ -65,28 +64,6 @@ class MultimodalChat:
 
         if import_images:
             self.utils.import_images(self.config.IMAGE_PATH)
-
-    def reset_state(self) -> None:
-        """
-        Reset the state of the chatbot.
-        """
-
-        if self.state is not None and 'output_queue' in self.state:
-            output_queue = self.state['output_queue']
-        else:
-            output_queue = queue.Queue()
-
-        self.state = {
-            "sketchbook": [],
-            "sketchbook_current_page": 0,
-            "checklist": [],
-            "archive": set(),
-            "documents": {},
-            "improvements": "",
-            "output_queue": output_queue,
-        }
-
-        self.tools.set_state(self.state)
 
     def run(self) -> None:
         """
@@ -109,9 +86,14 @@ class MultimodalChat:
 
         with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
 
-            self.tools = Tools(self.config, self.utils)
-            
-            self.reset_state()
+            state = gr.State({
+                "sketchbook": {},
+                "sketchbook_current_section": {},
+                "checklist": {},
+                "archive": set(),
+                "documents": {},
+                "improvements": "",
+            })
 
             gr.Markdown(
                 """
@@ -129,7 +111,7 @@ class MultimodalChat:
                 scale=3,
             )
 
-                # To allow multiple file uploads
+            # To allow multiple file uploads
             chat_input = gr.MultimodalTextbox(
                 show_label=False,
                 placeholder="Enter your instructions and press enter.",
@@ -145,7 +127,7 @@ class MultimodalChat:
                 return history, ''
 
             chat_input.submit(add_message, [chatbot, chat_input], [chatbot, chat_input], queue=False).then(
-                self.chat_function, chatbot, chatbot
+                self.chat_function, inputs=[chatbot, state], outputs=[chatbot, state]
             )
 
             def add_example(evt: gr.SelectData):
@@ -158,10 +140,10 @@ class MultimodalChat:
 
             chatbot.undo(handle_undo, chatbot, [chatbot, chat_input])
 
-            def handle_retry(history, retry_data: gr.RetryData):
-                yield from self.chat_function(history[:retry_data.index + 1])
+            def handle_retry(history, state, retry_data: gr.RetryData):
+                yield from self.chat_function(history[:retry_data.index + 1], state)
 
-            chatbot.retry(handle_retry, chatbot, [chatbot])
+            chatbot.retry(handle_retry, [chatbot, state], [chatbot, state])
 
         abs_image_path = os.path.abspath(self.config.IMAGE_PATH)
         abs_output_path = os.path.abspath(self.config.OUTPUT_PATH)
@@ -170,7 +152,7 @@ class MultimodalChat:
 
         app.launch(allowed_paths=allowed_paths)
 
-    def process_response_message(self, response_message: dict) -> None:
+    def process_response_message(self, output_queue: queue.Queue, response_message: dict) -> None:
         """
         Process the response message and update the state with the output content.
 
@@ -211,9 +193,9 @@ class MultimodalChat:
                         hidden_content = "<!--\n" + tool_result + "\n-->"
                         output_content.append(hidden_content)
         for m in output_content:
-            self.state['output_queue'].put({"format": "text", "text": m})
+            output_queue.put({"format": "text", "text": m})
 
-    def handle_response(self, response_message: dict) -> dict|None:
+    def handle_response(self, output_queue: queue.Queue, response_message: dict) -> dict|None:
         """
         Handle the response from the AI model and process any tool use requests.
 
@@ -234,7 +216,10 @@ class MultimodalChat:
                 tool_use_block = content_block['toolUse']
 
                 try:
-                    tool_result_value = self.utils.get_tool_result(tool_use_block)
+                    tool_result_value, formatted_tool_use_name, tool_metadata = self.utils.get_tool_result(tool_use_block)
+
+                    if len(tool_metadata) > 0:
+                        output_queue.put({"format": "metadata", "title": formatted_tool_use_name, "metadata": tool_metadata})
 
                     if tool_result_value is not None:
                         follow_up_content_blocks.append({
@@ -264,7 +249,7 @@ class MultimodalChat:
         else:
             return None
 
-    def format_messages_for_bedrock_converse(self, history: list[dict]) -> list[dict]:
+    def format_messages_for_bedrock_converse(self, history: list[dict], state: dict) -> list[dict]:
         """
         Format messages for the Bedrock converse API.
 
@@ -287,6 +272,10 @@ class MultimodalChat:
             append_message = False
             m_role = m['role']
             m_content = m['content']
+
+            # To skip metadata messages from tools
+            if 'metadata' in m and 'title' in m['metadata'] and m['metadata']['title'] is not None:
+                continue
 
             # To skip automatic replies to user empty messages
             if skip_next:
@@ -344,9 +333,9 @@ class MultimodalChat:
                 elif self.config.HANDLE_DOCUMENT_TO_TEXT_IN_CODE:
                     file_name_with_extension = f'{file_name}.{extension}'
                     try:
-                        if file_name_with_extension in self.state['documents']:
+                        if file_name_with_extension in state['documents']:
                             print(f"File '{file_name_with_extension}' already imported.")
-                            file_text = self.state['documents'][file_name_with_extension]
+                            file_text = state['documents'][file_name_with_extension]
                         else:
                             print(f"Importing '{file_name_with_extension}'...")
                             if extension == 'pdf':
@@ -358,7 +347,7 @@ class MultimodalChat:
                                     file_text = f.read()
                             else:
                                 file_text = self.utils.process_other_document_formats(file)
-                            self.state['documents'][file_name_with_extension] = file_text
+                            state['documents'][file_name_with_extension] = file_text
                         file_message = between_xml_tag(file_text, 'file', {'filename': file_name_with_extension})
                         self.utils.add_to_text_index(file_message, file_name_with_extension, {'filename': file_name_with_extension})
                         message_content.append({ "text": file_message })
@@ -390,7 +379,17 @@ class MultimodalChat:
 
         return messages
 
-    def manage_conversation_flow(self, messages: list[dict], temperature: float, system_prompt: str) -> None:
+    def get_system_prompt(self, system_prompt: str, state: dict) -> str:
+        # Add current date and time to the system prompt
+        current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
+        current_time = datetime.now().strftime("%I:%M:%S %p")
+        full_system_prompt = f"{system_prompt}\nKeep in mind that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
+        if len(state['improvements']) > 0:
+            full_system_prompt += "\n\nImprovements:\n" + state['improvements']
+
+        return full_system_prompt
+
+    def manage_conversation_flow(self, output_queue: queue.Queue, messages: list[dict], tools: Tools, temperature: float, system_prompt: str) -> None:
         """
         Run a conversation loop with the AI model, processing responses and handling tool usage.
 
@@ -406,24 +405,18 @@ class MultimodalChat:
         loop_count = 0
         continue_loop = True
 
-        # Add current date and time to the system prompt
-        current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
-        current_time = datetime.now().strftime("%I:%M:%S %p")
-        system_prompt_with_improvements = system_prompt + f"\nKeep in mind that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
-
-        if len(self.state['improvements']) > 0:
-            system_prompt_with_improvements += "\n\nImprovements:\n" + self.state['improvements']
+        full_system_prompt = self.get_system_prompt(system_prompt, tools.state)
 
         while continue_loop:
 
-            response = self.utils.invoke_text_model(messages, system_prompt_with_improvements, temperature, tools=self.tools.tools_json)
+            response = self.utils.invoke_text_model(messages, full_system_prompt, temperature, tools=tools.tools_json)
 
             response_message = response['output']['message']
             messages.append(response_message)
 
-            self.process_response_message(response_message)
+            self.process_response_message(output_queue, response_message)
 
-            follow_up_message = self.handle_response(response_message)
+            follow_up_message = self.handle_response(output_queue, response_message)
 
             if follow_up_message is None:
                 # No remaining work to do, return final response to user
@@ -436,7 +429,7 @@ class MultimodalChat:
                 else:
                     messages.append(follow_up_message)
 
-    def process_streaming_chunk(self, chunk: dict, messages: list[dict], stream_state: dict) -> None:
+    def process_streaming_chunk(self, chunk: dict, messages: list[dict], tools: Tools, stream_state: dict) -> None:
         """
         Process a chunk of streaming data from the AI model.
 
@@ -472,7 +465,7 @@ class MultimodalChat:
                 match content_block_delta['delta']:
                     case {'text': text}:
                         stream_state['new_content'] += text
-                        self.state['output_queue'].put({"format": "text", "text": text})
+                        stream_state['output_queue'].put({"format": "text", "text": text})
                     case {'toolUse': tool_use_delta}:
                         stream_state['tool_use_block']['input'] += tool_use_delta['input']
                     case _:
@@ -499,7 +492,10 @@ class MultimodalChat:
                     stream_state['new_message']['content'].append( { "toolUse": stream_state['tool_use_block'].copy() } )
 
                     try:
-                        tool_result_value = self.tools.get_tool_result(stream_state['tool_use_block'])
+                        tool_result_value, formatted_tool_use_name, tool_metadata = tools.get_tool_result(stream_state['tool_use_block'])
+
+                        if len(tool_metadata) > 0:
+                            stream_state['output_queue'].put({"format": "metadata", "title": formatted_tool_use_name, "metadata": tool_metadata})
 
                         if tool_result_value is not None:
                             stream_state['follow_up_content_blocks'].append({
@@ -513,6 +509,7 @@ class MultimodalChat:
 
                     except ToolError as e:
                         print(f"Error processing tool use: {e}")
+                        print(traceback.format_exc())
                         stream_state['follow_up_content_blocks'].append({
                             "toolResult": {
                                 "toolUseId": stream_state['tool_use_block']['toolUseId'],
@@ -527,7 +524,7 @@ class MultimodalChat:
             case _:
                 print(f"Unknown streaming chunk: {chunk}")
 
-    def manage_conversation_flow_stream(self, messages: list[dict], temperature: float, system_prompt: str) -> None:
+    def manage_conversation_flow_stream(self, output_queue: queue.Queue, messages: list[dict], tools: Tools, temperature: float, system_prompt: str) -> None:
         """
         Run a conversation loop with the AI model using streaming, processing responses and handling tool usage.
 
@@ -540,17 +537,9 @@ class MultimodalChat:
             This function handles streaming responses from the AI model and processes them in chunks.
             Tool usage is handled in real-time as the response is being generated.
         """
-        global bedrock_runtime_client
-
         continue_loop = True
 
-        # Add current date and time to the system prompt
-        current_date_and_day_of_the_week = datetime.now().strftime("%a, %Y-%m-%d")
-        current_time = datetime.now().strftime("%I:%M:%S %p")
-        system_prompt_with_improvements = system_prompt + f"\nKeep in mind that today is {current_date_and_day_of_the_week} and the current time is {current_time}."
-
-        if len(self.state['improvements']) > 0:
-            system_prompt_with_improvements += "\n\nImprovements:\n" + self.state['improvements']
+        full_system_prompt = self.get_system_prompt(system_prompt, tools.state)
 
         while continue_loop:
 
@@ -566,8 +555,8 @@ class MultimodalChat:
             if system_prompt is not None:
                 converse_body["system"] = [{"text": system_prompt}]
 
-            if self.tools.tools_json:
-                converse_body["toolConfig"] = {"tools": self.tools.tools_json}
+            if tools:
+                converse_body["toolConfig"] = {"tools": tools.tools_json}
 
             print("Thinking...")
 
@@ -577,6 +566,7 @@ class MultimodalChat:
                 streaming_response = self.clients.bedrock_runtime_client_text_model.converse_stream(**converse_body)
 
                 stream_state = {
+                    'output_queue': output_queue,
                     'new_content': '',
                     'new_message': None,
                     'tool_use_block': None,
@@ -585,7 +575,7 @@ class MultimodalChat:
 
                 try:
                     for chunk in streaming_response['stream']:
-                        self.process_streaming_chunk(chunk, messages, stream_state)
+                        self.process_streaming_chunk(chunk, messages, tools, stream_state)
                 except (urllib3.exceptions.ReadTimeoutError, botocore.exceptions.EventStreamError) as e:
                     print("Retrying...")
                     continue
@@ -601,7 +591,7 @@ class MultimodalChat:
             else:
                 continue_loop = False
 
-    def chat_function(self, history: list[dict]) -> Generator[list[dict], None, None]:
+    def chat_function(self, history: list[dict], state: dict) -> Generator[list[dict], None, None]:
         """
         Process a chat message and generate a response using an AI model.
 
@@ -630,58 +620,71 @@ class MultimodalChat:
                 return [{"format": "text", "text": error_message}]
             return results
 
-        if len(history) == 1:
-            print("First message, resetting state...")
-            self.reset_state()
-        messages = self.format_messages_for_bedrock_converse(history)
+        print(f"State: {state}")
+
+        tools = Tools(self.config, state, self.utils)
+        output_queue = queue.Queue()
+
+        messages = self.format_messages_for_bedrock_converse(history, tools.state)
         if self.config.STREAMING:
             target_function = self.manage_conversation_flow_stream
         else:
             target_function = self.manage_conversation_flow
-        thread = threading.Thread(target=target_function, args=(messages, self.config.TEMPERATURE, self.config.SYSTEM_PROMPT))
+        thread = threading.Thread(target=target_function, args=(output_queue, messages, tools, self.config.TEMPERATURE, self.config.SYSTEM_PROMPT))
         thread.start()
 
         num_dots = 0
         tot_dots = 3
         history.append({"role": "assistant", "content": ""})
 
-        output_queue = self.state['output_queue']
-
         while thread.is_alive() or not output_queue.empty():
             try:
                 output = output_queue.get(timeout=0.5)
-                history[-1]['content'] += output['text']
-                history[-1]['content'] = format_response(history[-1]['content'])
-                results = find_images_in_response(history[-1]['content'])
-                if len(results) > 1:
-                    history[-1]['content'] = ''
-                    for item in results:
-                        match item['format']:
-                            case 'text':
-                                history[-1]['content'] += item['text']
-                            case 'file':
-                                if len(history[-1]['content']) == 0:
-                                    history.pop()
-                                content = {"path": item['filename'], "alt_text": item['description']}
-                                history.append({"role": "assistant", "content": content})
-                                history.append({"role": "assistant", "content": ""})
-                yield history
+                match output['format']:
+                    case 'text':
+                        history[-1]['content'] += output['text']
+                        history[-1]['content'] = format_response(history[-1]['content'])
+                        results = find_images_in_response(history[-1]['content'])
+                        if len(results) > 1:
+                            history[-1]['content'] = ''
+                            for item in results:
+                                match item['format']:
+                                    case 'text':
+                                        history[-1]['content'] += item['text']
+                                    case 'file':
+                                        if len(history[-1]['content']) == 0:
+                                            history.pop()
+                                        content = {"path": item['filename'], "alt_text": item['description']}
+                                        history.append({"role": "assistant", "content": content})
+                                        history.append({"role": "assistant", "content": ""})
+                    case 'metadata':
+                        title = output['title']
+                        metadata = output['metadata']
+                        if not metadata.startswith("```"):
+                            metadata = f"```\n{metadata}\n```"
+                        if len(history[-1]['content']) == 0:
+                            history.pop()
+                        history.append({"role": "assistant", "content": metadata, "metadata": { "title": title }})
+                        history.append({"role": "assistant", "content": ""})
+                    case _:
+                        print(f"Unknown output format: {output['format']}")
+                yield history, state
                 output_queue.task_done()
             except queue.Empty:
                 num_dots = (num_dots % tot_dots) + 1
                 if type(history[-1]['content']) == str:
                     old_content = history[-1]['content']
                     history[-1]['content'] += f"\n{'.' * num_dots}"
-                    yield history
+                    yield history, state
                     history[-1]['content'] = old_content
                 else:
                     history.append({"role": "assistant", "content": f"\n{'.' * num_dots}"})
-                    yield history
+                    yield history, state
                     history.pop()
                 continue
 
         # To clean up dots in the last message
-        yield history
+        yield history, state
 
 
     def reset_index(self) -> None:

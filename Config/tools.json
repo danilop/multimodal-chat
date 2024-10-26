@@ -9,7 +9,7 @@
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple, elegant, and short./nTo show images, charts, or plots written to /tmp, print a line per image in output with this syntax: Show image '<path/filename>'/nTo show text files written to /tmp, print a line per file in output with this syntax: Show text file '<path/filename>'"
+							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple and elegant./nTo get an image, chart, or plot written to /tmp, print in output a line with this syntax: Get image '<path/filename>'/nTo get a text file written to /tmp, print in output a line with this syntax: Get text file '<path/filename>'"
 						},
 						"number_of_images": {
 							"type": "integer",
@@ -209,7 +209,7 @@
 					"properties": {
 						"url": {
 							"type": "string",
-							"description": "The HTTP(S) URL to browse. Use https://... when possible."
+							"description": "The public URL link (https://...) to browse."
 						},
 						"keywords": {
 							"type": "string",
@@ -267,18 +267,22 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this sketchbook to write, review, and update text content. Content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. When you start a new sketchbook, the previous one is deleted. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or longer notes while working on your answer. When you're ok with the content of the sketchbook, share it as a file with me. I cannot see the sketchbook before you share it as a file with me.",
+			"description": "Use this tool to write, review, and update text content. You casn have multiple sketchbooks. For each sketchbook, content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or longer notes while working on your answer. When you're ok with the content of a sketchbook, share it as a file with me. I cannot see a sketchbook before you share it.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
+						"title": {
+							"type": "string",
+							"description": "The title of the sketchbook. A title uniquely identifies a sketchbook."
+						},
 						"command": {
 							"type": "string",
-							"description": "How to use the sketchbook, can be 'start_new', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', or 'share_sketchbook_as_a_file'."
+							"description": "How to use the sketchbook, can be 'start_new_with_content', 'add_section_at_the_end', 'info', 'start_review', 'next_section', 'update_current_section', 'delete_current_section', or 'share_sketchbook_as_a_file'."
 						},
 						"content": {
 							"type": "string",
-							"description": "The content to update the latest read section or to add a new section at the end. Use Markdown to format content. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. You can only include images that are stored in the image archive. To include an image in the sketchbook, add a line with the format '[image_id: <image_id>]' where <image_id> is the exact image_id of an image stored in the image catalog. Check that the image_id is valid by searching for it in the image catalog. If you need a new image, you can search and download it, generate it, or use Python to render a chart or a diagram."
+							"description": "The content for a new section or to update the current section. Use Markdown to format content. Don't add triple dots (...) or comments like 'to be continued' between sections. Each section can contain thousands of words. Only include images that are stored in the image archive. To include an image, add a line with the format '[image_id: <image_id>]' where <image_id> is an exact image ID in the image catalog. Check that the image ID is valid by searching in the image catalog. If you need a new image, you can download it, generate it, or use Python to render a chart or a diagram."
 						},
 						"filename": {
 							"type": "string",
@@ -286,6 +290,7 @@
 						}
 					},
 					"required": [
+						"title",
 						"command"
 					]
 				}
@@ -295,11 +300,15 @@
 	{
 		"toolSpec": {
 			"name": "checklist",
-			"description": "Use this checklist to track your progress and ensure you have covered all important points. You can add an item as next (to do it immediately) or at the end, show the current items, or mark the next to-do item as completed in the checklist. Use this tool to track your progress and ensure you have covered all important points. You can add a new item at any time, for example, to improve your answer.",
+			"description": "Use this tool to track your progress. You can have multiple checklists with different titles. You can add items as next (to do it immediately) or at the end, show the current items, or mark items as completed.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
+						"title": {
+							"type": "string",
+							"description": "The title of the checklist. A title uniquely identifies a checklist."
+						},
 						"command": {
 							"type": "string",
 							"description": "How to use the checklist, can be 'start_new_with_items', 'add_items_as_next', 'add_items_at_the_end', 'show_items', 'mark_next_n_items_as_completed'."
@@ -317,6 +326,7 @@
 						}
 					},
 					"required": [
+						"title",
 						"command"
 					]
 				}
@@ -452,7 +462,7 @@
 					"properties": {
 						"url": {
 							"type": "string",
-							"description": "The public URL link to download the image from."
+							"description": "The public URL link (https://...) to download the image from."
 						}
 					},
 					"required": [
@@ -513,18 +523,18 @@
 	{
 		"toolSpec": {
 			"name": "save_text_file",
-			"description": "Use this tool to save a text file in output. The file can contain Markdown or plain text. The file is saved in the output folder. The filename must be unique.",
+			"description": "Use this tool to save a text file in output. The file can contain Markdown or plain text. Don't use this tool for binary content like images. The file is saved in the output folder. The filename must be unique.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
 					"properties": {
-						"filename": {
-							"type": "string",
-							"description": "The output filename with no path."
-						},
 						"content": {
 							"type": "string",
 							"description": "The text content of the file. The content cannot be longer than a thousand words. For long content, use the 'sketchbook' tool."
+						},
+						"filename": {
+							"type": "string",
+							"description": "The output filename with no path."
 						}
 					},
 					"required": [
