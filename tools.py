@@ -199,7 +199,16 @@ class Tools:
 
         print(f"Output:\n---\n{output}\n---")
 
-        tool_metadata = f"```python\n{input_script}\n```\n```\nElapsed time: {elapsed_time:.2f} seconds\n```\n```\n{output}```"
+        tool_metadata = f"```python\n{input_script}\n```\n```"
+        
+        if len(install_modules) > 0:
+            tool_metadata += f"\nInstall modules: {install_modules}"
+        if number_of_images > 0:
+            tool_metadata += f"\nNumber of images: {number_of_images}"
+        if number_of_text_files > 0:
+            tool_metadata += f"\nNumber of text files: {number_of_text_files}"
+
+        tool_metadata += f"\nElapsed time: {elapsed_time:.2f} seconds\n```\n```\n{output}```"
 
         if len(images) != number_of_images:
             warning_message = f"Expected {number_of_images} images but found {len(images)}."

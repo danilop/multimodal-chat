@@ -21,7 +21,7 @@
 						},
 						"install_modules": {
 							"type": "array",
-							"description": "The list of additional Python modules to install. These modules are installed in a temporary directory. Installations must be repeated every time you use this tool. The list contains the names of Python modules separated by commas. The list can be empty. For example: ['numpy', 'pandas'] or []. The following modules are already installed: <modules>requests, beautifulsoup4, numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. ",
+							"description": "The list of additional Python modules to install. These modules are installed in a temporary directory. Installations must be repeated every time you use this tool. The list contains the names of Python modules separated by commas. The list can be empty. For example: ['numpy', 'pandas'] or []. The following modules are already installed: <modules>requests, beautifulsoup4, feedparser, numpy, pandas, mpmath, numba, tabulate, matplotlib, networkx, yfinance, qrcode, scikit-learn, umap-learn, sympy</modules>. You cannot install other modules. ",
 							"items": {
 								"type": "string"
 							}
