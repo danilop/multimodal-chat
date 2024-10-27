@@ -267,7 +267,7 @@
 	{
 		"toolSpec": {
 			"name": "sketchbook",
-			"description": "Use this tool to write, review, and update text content. You casn have multiple sketchbooks. For each sketchbook, content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, books, or longer notes while working on your answer. When you're ok with the content of a sketchbook, share it as a file with me. I cannot see a sketchbook before you share it.",
+			"description": "Use this tool to write, review, and update text content in one or more sketchbooks. For each sketchbook, content is stored in sections that you can add, review, update, or delete sequentially, one at a time. Separate topics in different sections. You can add a section at the end, ask for info (the number of sections, words, and characters in the sketchbook), start a review, update the current section, or delete the current section. Use this tool to write content like articles, blog posts, essays, chapters, books, and more. When the content of a sketchbook is complete, share it as a file with me. I cannot see a sketchbook before you share it.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -444,7 +444,7 @@
 	{
 		"toolSpec": {
 			"name": "image_catalog_count",
-			"description": "Get the number (count) of images in the image catalog.",
+			"description": "Get the number of images in the image catalog.",
 			"inputSchema": {
 				"json": {
 					"type": "object"

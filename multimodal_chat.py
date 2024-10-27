@@ -483,11 +483,14 @@ class MultimodalChat:
                         "content": [],
                     }
                 if stream_state['tool_use_block']:
-                    try:
-                        # Load the tool input JSON string to a dictionary
-                        stream_state['tool_use_block']['input'] = json.loads(stream_state['tool_use_block']['input'])
-                    except json.JSONDecodeError:
-                        pass
+                    if stream_state['tool_use_block']['input'] == '':
+                        stream_state['tool_use_block']['input'] = {}  
+                    else:
+                        try:
+                            # Load the tool input JSON string to a dictionary
+                            stream_state['tool_use_block']['input'] = json.loads(stream_state['tool_use_block']['input'])
+                        except json.JSONDecodeError:
+                            pass
 
                     stream_state['new_message']['content'].append( { "toolUse": stream_state['tool_use_block'].copy() } )
 
@@ -619,8 +622,6 @@ class MultimodalChat:
                 print(error_message)
                 return [{"format": "text", "text": error_message}]
             return results
-
-        print(f"State: {state}")
 
         tools = Tools(self.config, state, self.utils)
         output_queue = queue.Queue()

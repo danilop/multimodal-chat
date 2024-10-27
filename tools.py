@@ -2,11 +2,9 @@ import concurrent.futures
 import io
 import json
 import os
-import queue
 import random
 import re
 import tempfile
-import time
 import pypandoc
 import urllib
 import uuid
@@ -19,7 +17,6 @@ import wikipedia
 
 from duckduckgo_search import DDGS
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from pydub import AudioSegment
 
 from libs import load_json_config, mark_down_formatting, between_xml_tag
@@ -258,7 +255,9 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}"
+        tool_metadata = f"Keywords: {search_keywords}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_duckduckgo_news_search(self, tool_input: dict) -> str:
         """
@@ -286,7 +285,9 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}"
+        tool_metadata = f"Keywords: {search_keywords}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_duckduckgo_maps_search(self, tool_input: dict) -> str:
         """
@@ -318,7 +319,9 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}\nPlace: {search_place}"
+        tool_metadata = f"Keywords: {search_keywords}\nPlace: {search_place}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_wikipedia_search(self, tool_input: dict) -> str:
         """
@@ -347,7 +350,9 @@ class Tools:
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Query: {search_query}\nOutput: {output}"
+        tool_metadata = f"Query: {search_query}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_duckduckgo_images_search(self, tool_input: dict) -> str:
         """
@@ -375,7 +380,9 @@ class Tools:
         output = output.strip()
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Keywords: {search_keywords}\nOutput: {output}"
+        tool_metadata = f"Keywords: {search_keywords}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_wikipedia_geodata_search(self, tool_input: dict) -> str:
         """
@@ -416,7 +423,9 @@ class Tools:
         print(f"Output: {output}")
         print(f"Output length: {len(output)}")
 
-        return between_xml_tag(output, "output"), f"Latitude: {latitude}\nLongitude: {longitude}\nTitle: {search_title}\nRadius: {radius}\nOutput: {output}"
+        tool_metadata = f"Latitude: {latitude}\nLongitude: {longitude}\nTitle: {search_title}\nRadius: {radius}\nOutput length: {len(output)} characters"
+
+        return between_xml_tag(output, "output"), tool_metadata
 
     def get_tool_result_wikipedia_page(self, tool_input: dict) -> str:
         """
@@ -468,7 +477,9 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        return output, f"Title: {search_title}\nKeywords: {keywords}"
+        tool_metadata = f"Title: {search_title}\nKeywords: {keywords}\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
+
+        return output, tool_metadata
 
     def get_tool_result_browser(self, tool_input: dict) -> str:
         """
@@ -577,7 +588,9 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        return output, f"URL: {url}\nKeywords: {keywords}"
+        tool_metadata = f"URL: {url}\nKeywords: {keywords}\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
+
+        return output, tool_metadata
 
     def retrieve_from_archive(self, query: str) -> str:
         """
@@ -640,7 +653,12 @@ class Tools:
         keywords = tool_input.get("keywords", "")
         print(f"Keywords: {keywords}")
 
-        return self.retrieve_from_archive(keywords), f"Keywords: {keywords}"
+        output = self.retrieve_from_archive(keywords)
+        print(f"Output length: {len(output)}")
+
+        tool_metadata = f"Keywords: {keywords}\nOutput length: {len(output)} characters"
+
+        return output, tool_metadata
 
     def get_tool_result_store_in_archive(self, tool_input: dict) -> str:
         """
@@ -669,7 +687,9 @@ class Tools:
         id = uuid.uuid4()
         self.utils.add_to_text_index(content, id, metadata)
 
-        return "The content has been stored in the archive.", f"Content: {content}"
+        tool_metadata = f"Content length: {len(content)} characters\nContent: {content}"
+
+        return "The content has been stored in the archive.", tool_metadata
 
     def render_sketchbook(self, title: str) -> str:
         """
@@ -762,21 +782,24 @@ class Tools:
                 self.state["sketchbook"][title].append(content)
                 num_sections = len(self.state["sketchbook"][title])
                 self.state["sketchbook_current_section"][title] = num_sections - 1
-                return f"{command_message}. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user.\n{get_sketchbook_info()}", get_tool_metadata()
+                output = f"{command_message}. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user.\n{get_sketchbook_info()}"
+                return output, get_tool_metadata()
             case "start_review":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to review or update. Start by adding some content."
                 self.state["sketchbook_current_section"][title] = 0
                 section_content = self.state["sketchbook"][title][0]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section")
-                return f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
+                output = f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
+                return output, get_tool_metadata()
             case "next_section":
                 if self.state["sketchbook_current_section"][title] >= num_sections - 1:
                     return f"You're at the end. You're at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Start a review or save the sketchbook for the user."
                 self.state["sketchbook_current_section"][title] += 1
                 section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
-                return f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
+                output = f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
+                return output, get_tool_metadata()
             case "update_current_section":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections. Start by adding some content."
@@ -789,7 +812,8 @@ class Tools:
                     print(error_message)
                     return error_message
                 self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]] = content
-                return f"The current section has been updated with the new content.\n{get_sketchbook_info()}", get_tool_metadata()
+                output = f"The current section has been updated with the new content.\n{get_sketchbook_info()}"
+                return output, get_tool_metadata()
             case "delete_current_section":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to delete."
@@ -801,7 +825,8 @@ class Tools:
                     self.state["sketchbook_current_section"][title] -= 1
                 section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
-                return f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}", get_tool_metadata()
+                output = f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
+                return output, get_tool_metadata()
             case "share_sketchbook_as_a_file":
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to save."
@@ -849,10 +874,13 @@ class Tools:
                     print(error_message)
                     response += f"Error while saving the sketchbook as {output_format}: {error_message}\n"
                     return response
-                                                        
-                return f"The sketchbook has been saved as {output_basename}.\n{get_sketchbook_info()}\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]", get_tool_metadata()
+
+                output = f"The sketchbook has been saved as {output_basename}.\n{get_sketchbook_info()}\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
+                return output, get_tool_metadata()
             case _:
-                return "Invalid command."
+                error_message = f"Invalid command: {command}"
+                print(error_message)
+                return error_message, f"Invalid command: {command}"
 
     def get_tool_result_checklist(self, tool_input: dict) -> str:
         """
@@ -927,7 +955,8 @@ class Tools:
                     }
                     self.state["checklist"][title].insert(0, item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
+                output = f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                return output, render_checklist(render_for_model=False)
             case "add_items_at_the_end":
                 if len(items) == 0:
                     return "You need to provide items to add."
@@ -938,12 +967,14 @@ class Tools:
                     }
                     self.state["checklist"][title].append(item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
+                output = f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                return output, render_checklist(render_for_model=False)
             case "show_items":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"These are the items in the current checklist:\n\n{render_checklist(title)}", render_checklist(render_for_model=False)
+                output = f"These are the items in the current checklist:\n\n{render_checklist(title)}"
+                return output, render_checklist(render_for_model=False)
             case "mark_next_n_items_as_completed":
                 if num_items == 0:
                     return "The checklist is empty. There are no items to mark as completed."
@@ -957,7 +988,8 @@ class Tools:
                         break
                     self.state["checklist"][title][to_do_index]["completed"] = True
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                return f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}", render_checklist(render_for_model=False)
+                output = f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                return output, render_checklist(render_for_model=False)
             case _:
                 error_message = f"Invalid command: {command}"
                 print(error_message)
@@ -1010,7 +1042,10 @@ class Tools:
         print(f"Image base64 size: {len(image_base64)}")
         image = self.utils.store_image(image_format, image_base64)
 
-        return f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\nDon't mention the 'image_id' in your response.", f"Prompt: {prompt}"
+        output = f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\nDon't mention the 'image_id' in your response."
+        tool_metadata = f"Prompt: {prompt}\nImage ID: {image['id']}\nImage description: {image['description']}"
+
+        return output, tool_metadata
 
     def get_tool_result_search_image_catalog(self, tool_input: dict) -> str:
         """
@@ -1046,7 +1081,8 @@ class Tools:
         if len(result) == 0:
             return f"No images found."
         result = f"These are images similar to the description in descreasing order of similarity:\n{result}"
-        return result, f"Description: {description}\nMax results: {max_results}"
+        tool_metadata = f"Description: {description}\nMax results: {max_results}"
+        return result, tool_metadata
 
     def get_tool_result_similarity_image_catalog(self, tool_input: dict) -> str:
         """
@@ -1084,7 +1120,8 @@ class Tools:
         if len(result) == 0:
             return f"No similar images found."
         result = f"These are images similar to the reference image in descreasing order of similarity:\n{result}"
-        return result, f"Image ID: {image_id}\nMax results: {max_results}"
+        tool_metadata = f"Image ID: {image_id}\nMax results: {max_results}"
+        return result, tool_metadata
 
     def get_tool_result_random_images(self, tool_input: dict) -> str:
         """
@@ -1115,7 +1152,8 @@ class Tools:
         if len(result) == 0:
             return f"No random images returned."
         result = f"These are random images from the image catalog:\n{result}"
-        return result, f"Num: {num}"
+        tool_metadata = f"Num: {num}"
+        return result, tool_metadata
 
     def get_tool_result_get_image_by_id(self, tool_input: dict) -> str:
         """
@@ -1132,7 +1170,9 @@ class Tools:
         image = self.utils.get_image_by_id(image_id)
         if type(image) is not dict:
             return f"Error: Image not found."  # It's an error
-        return f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}", f"Image description: {image['description']}"
+        output = f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}"
+        tool_metadata = f"Image ID: {image['id']}\nImage description: {image['description']}"
+        return output, tool_metadata
 
     def get_tool_result_image_catalog_count(self, _tool_input: dict) -> int | str:
         """
@@ -1153,13 +1193,14 @@ class Tools:
         """
         try:
             info = self.utils.get_image_catalog_count_info()
-            print(f"Image catalog info: {info}")
-            count = info["count"]
-            return count, f"Image catalog info: {info}"
         except Exception as ex:
             error_message = f"Error: {ex}"
             print(error_message)
             return error_message
+        print(f"Image catalog info: {info}")
+        count = info["count"]
+        output = f"The image catalog contains {count} images."
+        return output, output
 
     def get_tool_result_download_image_into_catalog(self, tool_input: dict) -> str:
         """
@@ -1235,7 +1276,9 @@ class Tools:
 
         print(f"Image stored: {image}")
 
-        return f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}", f"URL: {url}\nImage description: {image['description']}"
+        output = f"Image downloaded and stored in the image catalog with 'image_id' {image['id']} and description:\n\n{image['description']}"   
+        tool_metadata = f"URL: {url}\nImage ID: {image['id']}\nImage description: {image['description']}"
+        return output, tool_metadata
 
     def get_tool_result_personal_improvement(self, tool_input: dict) -> str:
         """
@@ -1261,12 +1304,18 @@ class Tools:
         print(f"Improvements: {improvements}")
         match command:
             case 'show_improvements':
-                return f"These are the current improvements:\n{self.state['improvements']}", f"Command: {command}\nImprovements: {improvements}"
+                output = f"These are the current improvements:\n{self.state['improvements']}"
+                tool_metadata = f"Command: {command}\nImprovements: {improvements}"
+                return output, tool_metadata
             case 'update_improvements':
                 self.state['improvements']= improvements
-                return "Improvement updated.", f"Command: {command}\nImprovements: {improvements}"
+                output = "Improvement updated."
+                tool_metadata = f"Command: {command}\nImprovements: {improvements}"
+                return output, tool_metadata
             case _:
-                return "Invalid command."
+                output = "Invalid command."
+                tool_metadata = f"Invalid command: {command}"
+                return output, tool_metadata
 
     def get_tool_result_arxiv(self, tool_input: dict) -> str:
         """
@@ -1334,7 +1383,9 @@ class Tools:
 
         print(f"Query content length: {len(query_content)}")
 
-        return f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\n{query_content}\n\nThe full content of the articles has been stored in the archive. You must retrieve the information you need from each article in the archive.", tool_metadata
+        output = f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\n{query_content}\n\nThe full content of the articles has been stored in the archive. You must retrieve the information you need from each article in the archive."
+
+        return output, tool_metadata
 
     def get_tool_result_save_text_file(self, tool_input: dict) -> str:
         """
@@ -1367,7 +1418,10 @@ class Tools:
             print(error_message)
             return error_message
 
-        return f"File saved: {filename}", f"Filename: {filename}\nContent: {content}"
+        output = f"File saved: {filename}"
+        tool_metadata = f"Filename: {filename}\nContent: {content}"
+        
+        return output, tool_metadata
 
     def get_tool_result_check_if_file_exists(self, tool_input: dict) -> str:
         """
@@ -1382,9 +1436,11 @@ class Tools:
         filename = tool_input.get("filename")
         full_path = os.path.join(self.config.OUTPUT_PATH, filename)
         if os.path.exists(full_path):
-            return f"File exists: {filename}", f"Filename: {filename}"
+            output = f"File exists: {filename}"
         else:
-            return f"File does not exist: {filename}", f"Filename: {filename}"
+            output = f"File does not exist: {filename}"
+
+        return output, output
 
     def get_tool_result_conversation(self, tool_input: dict) -> str:
         """
@@ -1428,7 +1484,7 @@ class Tools:
         positive_count = 0
         negative_count = 0
         for name in unique_names:
-            if abs(positive_count - negative_count) <= 1:
+            if abs(positive_count - negative_count) == 0:
                 pan_value = random.uniform(-pan_range, pan_range)
             elif positive_count > negative_count:
                 pan_value = random.uniform(-pan_range, 0)
@@ -1441,6 +1497,7 @@ class Tools:
                 positive_count += 1
             else:
                 negative_count += 1
+
         print(f"Panning: {panning}")
 
         current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1494,4 +1551,10 @@ class Tools:
 
         output_basename = os.path.basename(output_filename)
 
-        return f"The output conversation has been saved as an audio file ({output_basename}, {full_audio_segment.duration_seconds} seconds).\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]", f"Filename: {output_filename}\nDuration: {full_audio_segment.duration_seconds} seconds"
+        formatted_unique_names = ", ".join(unique_names)
+        formatted_panning = ", ".join([f"{name}: {panning[name]:.2f}" for name in unique_names])
+
+        output = f"The output conversation has been saved as an audio file ({output_basename}, {full_audio_segment.duration_seconds} seconds).\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
+        tool_metadata = f"Filename: {output_filename}\nVoices: {formatted_unique_names}\nPanning: {formatted_panning}\nDuration: {full_audio_segment.duration_seconds} seconds"
+
+        return output, tool_metadata

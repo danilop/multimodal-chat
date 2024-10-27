@@ -20,7 +20,8 @@ class ModelUsage:
     def __str__(self) -> str:
         output = []
         for metric, value in self.usage.items():
-            output.append(f' {self.METRICS[metric]}: {value}')
+            if value > 0:
+                output.append(f' {self.METRICS[metric]}: {value}')
         return 'Usage -' + ','.join(output)
                    
     def update(self, metric: str, value: int) -> None:
