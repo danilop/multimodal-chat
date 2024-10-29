@@ -304,7 +304,7 @@
 	{
 		"toolSpec": {
 			"name": "checklist",
-			"description": "Use this tool to track your progress. You can have multiple checklists with different IDs. You can add items as next (to do it immediately) or at the end, show the current items, or mark items as completed.",
+			"description": "Use this tool to track your progress. You can have multiple checklists with different IDs. You can add items at the beginning or at the end, show the current items, or mark items as completed. Before marking an item as completed, ask yourself if there is something you can improve. If so, add the improvement to the beginning or the end of the checklist.",
 			"inputSchema": {
 				"json": {
 					"type": "object",
@@ -315,7 +315,7 @@
 						},
 						"command": {
 							"type": "string",
-							"description": "How to use the checklist, can be 'start_new_with_items', 'add_items_as_next', 'add_items_at_the_end', 'show_items', 'mark_next_n_items_as_completed'."
+							"description": "How to use the checklist, can be 'start_new_with_items', 'add_items_at_the_beginning', 'add_items_at_the_end', 'show_items', 'mark_next_n_items_as_completed'."
 						},
 						"items": {
 							"type": "array",

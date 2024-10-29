@@ -3,13 +3,13 @@ const SKETCHBOOK_FILL_HEIGHT = 30;
 
 const old_content = {};
 
-async function updateHeights() {
+async function updateHeightsAndScroll() {
     const header = document.getElementById('header-title');
     const chatInput = document.getElementById('chat-input');
     const chatbot = document.getElementById('chatbot');
     const sideColumn = document.getElementById('side-column');
     const tabWrapper = document.getElementsByClassName('tab-wrapper')[0];
-    const sketchbooks = document.getElementsByClassName('tab-content');
+    const tabContents = document.getElementsByClassName('tab-content');
 
     if (header && chatInput && chatbot && sideColumn) {
         const headerHeight = header.offsetHeight;
@@ -23,25 +23,24 @@ async function updateHeights() {
         sideColumn.style.height = `${chatbotHeight}px`;
 
         if (tabWrapper) {
-            const sketchbookHeight = chatbotHeight - SKETCHBOOK_FILL_HEIGHT - tabWrapper.offsetHeight;
+            const contentHeight = chatbotHeight - SKETCHBOOK_FILL_HEIGHT - tabWrapper.offsetHeight;
 
-            for (const sketchbook of sketchbooks) {
-                sketchbook.style.height = `${sketchbookHeight}px`;
+            for (const content of tabContents) {
+                content.style.height = `${contentHeight}px`;
             }
         }
     }
 
-    for (const s of sketchbooks) {
+    for (const s of tabContents) {
         if (old_content[s.id] !== s.innerHTML) {
             s.scrollTop = s.scrollHeight;
             old_content[s.id] = s.innerHTML;
         }
     }
-
 }
 
-window.onload = updateHeights();
+window.onload = updateHeightsAndScroll();
 
-setInterval(updateHeights, 1);
+setInterval(updateHeightsAndScroll, 1);
 
-window.addEventListener('resize', updateHeights);
+window.addEventListener('resize', updateHeightsAndScroll);

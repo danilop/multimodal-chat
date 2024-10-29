@@ -973,7 +973,7 @@ class Tools:
             return between_xml_tag(output, "checklist") if render_for_model else output
 
         match command:
-            case "start_new_with_items" | "add_items_as_next":
+            case "start_new_with_items" | "add_items_at_the_beginning":
                 if command == "start_new_with_items":
                     self.state["checklist"][id] = []
                     if len(items) == 0:
