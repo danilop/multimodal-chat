@@ -34,7 +34,6 @@ from tools import Tools, ToolError
 # Fix to avoid the "The current process just got forked..." warning
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
-
 TEXT_INDEX_CONFIG = load_json_config("./Config/text_vector_index.json")
 MULTIMODAL_INDEX_CONFIG = load_json_config("./Config/multimodal_vector_index.json")
 EXAMPLES = load_json_config('./Config/examples.json')
@@ -77,14 +76,12 @@ class MultimodalChat:
         # Formatted for type "messages" (multimodal)
         formatted_examples = [{"text": example} for example in EXAMPLES]
 
-        CSS = """
-        .contain { display: flex; flex-direction: column; }
-        .gradio-container { height: 100vh !important; }
-        #component-0 { height: 100%; }
-        #chatbot { flex-grow: 1; overflow: auto;}
-        """
+        with open("update.js", "r") as f:
+            head_script = '<script>' + f.read() + '</script>'
 
-        with gr.Blocks(title="Multimodal Chat",css=CSS) as app:
+        with gr.Blocks(title="Multimodal Chat", fill_height=True, fill_width=True, head=head_script) as app:
+
+            old_content = {}
 
             state = gr.State({
                 "sketchbook": {},
@@ -93,26 +90,64 @@ class MultimodalChat:
                 "archive": set(),
                 "documents": {},
                 "improvements": "",
+                "files": {},
             })
 
             gr.Markdown(
                 """
                 # Yet Another Intelligent Assistant (YAIA)
                 A multimodal chat interface with access to many tools. To learn more, start with the examples.
-                """)
-
-            chatbot = gr.Chatbot(
-                elem_id="chatbot",
-                show_label=False,
-                type="messages",
-                examples=formatted_examples,
-                show_copy_button=True,
-                show_copy_all_button=True,
-                scale=3,
+                """,
+                elem_id="header-title",
             )
+            
+            with gr.Row(elem_id="chatbotrow", equal_height=True):
+                chatbot = gr.Chatbot(
+                    elem_id="chatbot",
+                    show_label=False,
+                    type="messages",
+                    examples=formatted_examples,
+                    show_copy_button=True,
+                    show_copy_all_button=True,
+                )
 
-            # To allow multiple file uploads
+                tools = Tools(self.config, state.value, self.utils)
+
+                with gr.Column(visible=False, elem_id="side-column") as side_column:
+                    @gr.render(inputs=[state])
+                    def update_tabs(state_value):
+                        for id in state_value['sketchbook']:
+                            formatted_id = self.utils.format_string(id)
+                            sketchbook = state_value['sketchbook'][id]
+                            content = tools.render_sketchbook(sketchbook, forPreview=True) 
+                            old_content[id] = content
+                            with gr.Tab(formatted_id):
+                                gr.Markdown(
+                                    content,
+                                    elem_classes="tab-content",
+                                    line_breaks=True,
+                                    show_copy_button=True,
+                                )
+                        for filename in state_value['files']:
+                            code_fence_language = state_value['files'][filename]['code_fence_language']
+                            content = "```" + code_fence_language + "\n" + state_value['files'][filename]['content'] + "\n```"
+                            with gr.Tab(f"File: {filename}"):
+                                gr.Markdown(
+                                    content,
+                                    elem_classes="tab-content",
+                                    line_breaks=True,
+                                )
+
+            def change_visibility(state):
+                if len(state['sketchbook']) > 0 or len(state['files']) > 0:
+                    return gr.Column(visible=True)
+                else:
+                    return gr.Column(visible=False)
+
+            state.change(change_visibility, inputs=[state], outputs=[side_column])
+
             chat_input = gr.MultimodalTextbox(
+                elem_id="chat-input",
                 show_label=False,
                 placeholder="Enter your instructions and press enter.",
                 file_count='multiple',
@@ -614,7 +649,7 @@ class MultimodalChat:
             cleaned_text = self.utils.replace_specific_xml_tags(cleaned_text)
             return cleaned_text
 
-        def find_images_in_response(response):
+        def find_images_and_files_in_response(response):
             try:
                 results = self.utils.process_image_and_file_placeholders_for_chat(response)
             except Exception as e:
@@ -645,7 +680,7 @@ class MultimodalChat:
                     case 'text':
                         history[-1]['content'] += output['text']
                         history[-1]['content'] = format_response(history[-1]['content'])
-                        results = find_images_in_response(history[-1]['content'])
+                        results = find_images_and_files_in_response(history[-1]['content'])
                         if len(results) > 1:
                             history[-1]['content'] = ''
                             for item in results:
@@ -684,7 +719,9 @@ class MultimodalChat:
                     history.pop()
                 continue
 
-        # To clean up dots in the last message
+        # To clean up dots in the last message and avoid empty messages
+        if len(history[-1]['content']) == 0:
+            history.pop()
         yield history, state
 
 

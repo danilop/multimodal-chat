@@ -646,7 +646,7 @@ class Utils:
 
         return chunks
 
-    def process_image_placeholders_for_file(self, text: str) -> str:
+    def process_image_placeholders(self, text: str, forPreview: bool = False) -> str:
         """
         Replace image placeholders with markdown to display the image.
 
@@ -660,10 +660,11 @@ class Utils:
             image_id = match.group(1)
             image = self.get_image_by_id(image_id)
             if isinstance(image, dict):
-                filename = image["filename"]
-                filename = os.path.relpath(os.path.join('..', filename))
-                # Using Markdown syntax with filename
-                return f'![{escape(image["description"])}]({filename})'
+                if forPreview:
+                    link = f"http://127.0.0.1:7860/gradio_api/file={image["filename"]}"
+                else:
+                    link = os.path.relpath(os.path.join('..', image["filename"]))
+                return f'![{escape(image["description"])}]({link})'
             else:
                 error_message = f"Image with 'image_id' {image_id} not found in the image catalog."
                 print(error_message)
@@ -1340,3 +1341,6 @@ class Utils:
         self.usage.update('images', 1)
 
         return response_body
+
+    def format_string(self, string: str) -> str:
+        return string.replace('_', ' ').capitalize()

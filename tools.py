@@ -6,6 +6,7 @@ import random
 import re
 import tempfile
 import pypandoc
+import textwrap
 import urllib
 import uuid
 
@@ -27,31 +28,37 @@ from utils import Utils, ImageNotFoundError
 
 class ToolError(Exception):
     """
-    Custom exception class for tool-related errors.
+    Custom exception for tool-related errors.
 
-    This exception is raised when there's an issue with tool execution or usage
-    in the chat system. It can be used to handle specific errors related to
-    tools and provide meaningful error messages to the user or the system.
+    Raised when there's an issue with tool execution or usage in the chat system.
+    Used to provide meaningful error messages to users or the system.
     """
     pass
 
 
 class Tools:
     """
-    A class to manage and execute tools for the chatbot.
+    Manages and executes tools for the chatbot.
 
-    This class loads tool configurations from a JSON file, initializes utility functions,
-    and provides methods to execute various tools based on the tool name and input.
+    Loads tool configurations from JSON, initializes utilities, and provides methods 
+    to execute various tools based on tool name and input parameters.
+
+    Attributes:
+        config (Config): Configuration settings
+        state (dict): Current chatbot state
+        utils (Utils): Utility functions
+        tools_json (dict): Tool definitions loaded from JSON
+        tool_functions (dict): Mapping of tool names to handler functions
     """
 
     def __init__(self, config: Config, state: dict, utils: Utils) -> None:
         """
-        Initialize the Tools class with the given configuration, utilities, state, and output queue.
+        Initialize Tools with configuration, state and utilities.
 
         Args:
-            config (Config): The configuration object.
-            utils (Utils): The utility object.
-            state (dict): The state of the chatbot.
+            config (Config): Configuration settings
+            state (dict): Current chatbot state 
+            utils (Utils): Utility functions
         """
 
         self.config = config
@@ -92,20 +99,13 @@ class Tools:
 
     def check_tools_consistency(self) -> None:
         """
-        Check the consistency between defined tools and their corresponding functions.
+        Verify consistency between defined tools and their functions.
 
-        This function compares the set of tool names defined in the TOOLS global variable
-        with the set of function names in the TOOL_FUNCTIONS dictionary. It ensures that
-        there is a one-to-one correspondence between the defined tools and their
-        implementation functions.
+        Compares tool names defined in tools_json against function names in tool_functions
+        to ensure there is a one-to-one correspondence.
 
         Raises:
-            Exception: If there is a mismatch between the tools defined in TOOLS
-                    and the functions defined in TOOL_FUNCTIONS.
-
-        Note:
-            This function assumes that TOOLS and TOOL_FUNCTIONS are global variables
-            defined elsewhere in the code.
+            Exception: If there is a mismatch between defined tools and functions
         """
         tools_set = set([ t['toolSpec']['name'] for t in self.tools_json])
         tool_functions_set = set(self.tool_functions.keys())
@@ -118,14 +118,18 @@ class Tools:
         Execute a tool and return its result.
 
         Args:
-            tool_use_block (dict): A dictionary containing the tool use information,
-                               including the tool name and input.
+            tool_use_block (dict): Tool execution info containing:
+                - name (str): Name of tool to execute
+                - input (dict): Input parameters for the tool
 
         Returns:
-            str: The result of the tool execution.
+            tuple: Contains:
+                - str: Tool execution result
+                - str: Formatted tool name
+                - str: Additional metadata (optional)
 
         Raises:
-            ToolError: If an invalid tool name is provided or if there's an error during tool execution.
+            ToolError: If tool name is invalid or execution fails
         """
         tool_use_name = tool_use_block['name']
 
@@ -143,19 +147,25 @@ class Tools:
 
     def get_tool_result_python(self, tool_input: dict) -> tuple[str, str]:
         """
-        Execute a Python script using AWS Lambda and process the result.
+        Execute Python code using AWS Lambda.
 
         Args:
-            tool_input (dict): A dictionary containing the 'script' key with the Python code to execute.
+            tool_input (dict): Contains:
+                - script (str): Python code to execute
+                - install_modules (list): Python packages to install
+                - number_of_images (int): Expected number of images
+                - number_of_text_files (int): Expected number of text files
 
         Returns:
-            str: The output of the Python script execution, wrapped in XML tags.
+            tuple: Contains:
+                - str: Script output wrapped in XML tags
+                - str: Tool metadata including script, modules, timing info
+                - str: Additional warnings/errors if any
 
         Note:
-            - The function uses the AWS_LAMBDA_FUNCTION_NAME from the config for the Lambda function name.
-            - It adds the script and its output to the chat interface's state for display.
-            - The output is truncated if it exceeds MAX_OUTPUT_LENGTH from the config.
-            - If images are generated during script execution, they are stored in the image catalog.
+            - Uses AWS Lambda for code execution
+            - Truncates output if exceeds MAX_OUTPUT_LENGTH
+            - Stores generated images in image catalog
         """
         input_script = tool_input.get("script", "")
         install_modules = tool_input.get("install_modules", [])
@@ -700,7 +710,14 @@ class Tools:
 
         return "The content has been stored in the archive.", tool_metadata
 
-    def render_sketchbook(self, title: str) -> str:
+    def render_sketchbook(self, sketchbook: dict, forPreview: bool = False) -> str:
+        processed_sketchbook = [self.utils.process_image_placeholders(section, forPreview) for section in sketchbook]
+
+        rendered_sketchbook = "\n\n".join(processed_sketchbook)
+        rendered_sketchbook = "\n" + re.sub(r'\n{3,}', '\n\n', rendered_sketchbook) + "\n"
+        return rendered_sketchbook
+
+    def render_sketchbook_from_id(self, id: str) -> str:
         """
         Render a sketchbook as a single string, optionally using a new path for images.
 
@@ -711,12 +728,8 @@ class Tools:
             str: A single string containing all sketchbook sections, properly formatted.
         """
 
-        sketchbook = self.state["sketchbook"][title]
-        processed_sketchbook = [self.utils.process_image_placeholders_for_file(section) for section in sketchbook]
-
-        rendered_sketchbook = "\n\n".join(processed_sketchbook)
-        rendered_sketchbook = "\n" + re.sub(r'\n{3,}', '\n\n', rendered_sketchbook) + "\n"
-        return rendered_sketchbook
+        sketchbook = self.state["sketchbook"][id]
+        return self.render_sketchbook(sketchbook)
 
     def get_tool_result_sketchbook(self, tool_input: dict) -> str:
         """
@@ -744,145 +757,159 @@ class Tools:
             This function uses the utils.render_sketchbook method to render the sketchbook.
             It also keeps track of the sketchbook sections in the state.
         """
-        title = tool_input.get("title", "")
+        id = tool_input.get("id", "")
         command = tool_input.get("command", "")
         content = tool_input.get("content", "")
         filename = tool_input.get("filename", "")
-        print(f"Title: {title}")
-        print(f"Command: {command}")
+        format = tool_input.get("format", "")
+        print(f"ID: {id}")
+        print(f"Command: {self.utils.format_string(command)}")
         if len(content) > 0:
             print(f"Content:\n---\n{content}\n---")
         if len(filename) > 0:
             print(f"Filename: {filename}")
+        if len(format) > 0:
+            print(f"Format: {format}")
 
-        if not title in self.state["sketchbook"]:
-            self.state["sketchbook"][title] = []
-            self.state["sketchbook_current_section"][title] = 0
-
-        num_sections = len(self.state["sketchbook"][title])
+        if id not in self.state["sketchbook"] and command != "start_new_with_content":
+            sketchbook_list = "\n".join(self.state["sketchbook"].keys())
+            return f"Sketchbook not found. The following sketchbooks are available:\n{sketchbook_list}"
 
         def get_sketchbook_info() -> str:
-            sketchbook = self.state["sketchbook"][title]
-            num_words = sum(len(section.split()) for section in sketchbook)
-            num_characters = sum(len(section) for section in sketchbook)
-            return f"The sketchbook has {num_sections} sections / {num_words} words / {num_characters} characters."
+            if id in self.state["sketchbook"]:
+                sketchbook = self.state["sketchbook"][id]
+                num_words = sum(len(section.split()) for section in sketchbook)
+                num_characters = sum(len(section) for section in sketchbook)
+                return f"The sketchbook has {num_sections} sections / {num_words} words / {num_characters} characters."
+            else:
+                return "Sketchbook not found."
 
         def get_tool_metadata() -> str:
-            return f"Title: {title}\nCommand: {command.replace('_', ' ').capitalize()}\n{get_sketchbook_info()}"
+            output = f"ID: {id}\nCommand: {command}"
+            if id in self.state["sketchbook"]:
+                output += f"\n{get_sketchbook_info()}"
+            return output
         
         match command:
             case "info":
                 return get_sketchbook_info(), get_tool_metadata()
             case "start_new_with_content" | "add_section_at_the_end":
                 if command == "start_new_with_content":
-                    self.state["sketchbook"][title] = []
-                    self.state["sketchbook_current_section"][title] = 0
-                    command_message = f"This is a new sketchbook with title '{title}'."
+                    self.state["sketchbook"][id] = []
+                    self.state["sketchbook_current_section"][id] = 0
+                    command_message = f"This is a new sketchbook with ID '{id}'."
                 else:
-                    command_message = f"A new section has been added at the end of the sketchbook '{title}'."
+                    command_message = f"A new section has been added at the end of the sketchbook '{id}'."
                 if len(content) == 0:
                     return "You need to provide content to add a new section."
                 try:
-                    _ = self.utils.process_image_placeholders_for_file(content)
+                    _ = self.utils.process_image_placeholders(content)
                 except Exception as e:
                     error_message = f"Section not added. Error: {e}"
                     print(error_message)
                     return error_message
-                self.state["sketchbook"][title].append(content)
-                num_sections = len(self.state["sketchbook"][title])
-                self.state["sketchbook_current_section"][title] = num_sections - 1
-                output = f"{command_message}. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Add more sections, start a review, or save the sketchbook for the user.\n{get_sketchbook_info()}"
+                self.state["sketchbook"][id].append(content)
+                num_sections = len(self.state["sketchbook"][id])
+                self.state["sketchbook_current_section"][id] = num_sections - 1
+                output = f"{command_message}. You're now at section {self.state['sketchbook_current_section'][id] + 1} of {num_sections}. Add more sections ir start a review.\n{get_sketchbook_info()}"
                 return output, get_tool_metadata()
             case "start_review":
+                num_sections = len(self.state["sketchbook"][id])
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to review or update. Start by adding some content."
-                self.state["sketchbook_current_section"][title] = 0
-                section_content = self.state["sketchbook"][title][0]
+                self.state["sketchbook_current_section"][id] = 0
+                section_content = self.state["sketchbook"][id][0]
                 section_content_between_xml_tag = between_xml_tag(section_content, "section")
                 output = f"You're starting your review at section 1 of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
                 return output, get_tool_metadata()
             case "next_section":
-                if self.state["sketchbook_current_section"][title] >= num_sections - 1:
-                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. Start a review or save the sketchbook for the user."
-                self.state["sketchbook_current_section"][title] += 1
-                section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
-                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
-                output = f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
+                num_sections = len(self.state["sketchbook"][id])
+                if self.state["sketchbook_current_section"][id] >= num_sections - 1:
+                    return f"You're at the end. You're at section {self.state['sketchbook_current_section'][id] + 1} of {num_sections}."
+                self.state["sketchbook_current_section"][id] += 1
+                section_content = self.state["sketchbook"][id][self.state["sketchbook_current_section"][id]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][id]})
+                output = f"Moving to the next section. You're now at section {self.state['sketchbook_current_section'][id] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
                 return output, get_tool_metadata()
             case "update_current_section":
+                num_sections = len(self.state["sketchbook"][id])
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections. Start by adding some content."
                 if len(content) == 0:
                     return "You need to provide content to update the current section."
                 try:
-                    _ = self.utils.process_image_placeholders_for_file(content)
+                    _ = self.utils.process_image_placeholders(content)
                 except Exception as e:
                     error_message = f"Section not updated. Error: {e}"
                     print(error_message)
                     return error_message
-                self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]] = content
+                self.state["sketchbook"][id][self.state["sketchbook_current_section"][id]] = content
                 output = f"The current section has been updated with the new content.\n{get_sketchbook_info()}"
                 return output, get_tool_metadata()
             case "delete_current_section":
+                num_sections = len(self.state["sketchbook"][id])
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to delete."
-                self.state["sketchbook"][title].pop(self.state["sketchbook_current_section"][title])
-                num_sections = len(self.state["sketchbook"][title])
+                self.state["sketchbook"][id].pop(self.state["sketchbook_current_section"][id])
+                num_sections = len(self.state["sketchbook"][id])
                 if num_sections == 0:
                     return "The section has been deleted. The sketchbook is now empty."
-                if self.state["sketchbook_current_section"][title] >= num_sections - 1:
-                    self.state["sketchbook_current_section"][title] -= 1
-                section_content = self.state["sketchbook"][title][self.state["sketchbook_current_section"][title]]
-                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][title]})
-                output = f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'][title] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
+                if self.state["sketchbook_current_section"][id] >= num_sections - 1:
+                    self.state["sketchbook_current_section"][id] -= 1
+                section_content = self.state["sketchbook"][id][self.state["sketchbook_current_section"][id]]
+                section_content_between_xml_tag = between_xml_tag(section_content, "section", {"id": self.state["sketchbook_current_section"][id]})
+                output = f"The section has been deleted. You're now at section {self.state['sketchbook_current_section'][id] + 1} of {num_sections}. This is the content of the current section:\n\n{section_content_between_xml_tag}\n\nUpdate the content of this section, delete the section, or go to the next section. The review is completed when you reach the end.\n{get_sketchbook_info()}"
                 return output, get_tool_metadata()
-            case "share_sketchbook_as_a_file":
+            case "delete_sketchbook":
+                del self.state["sketchbook"][id]
+                output = f"The sketchbook '{id}' has been deleted."
+                return output, get_tool_metadata()
+            case "save_sketchbook":
+                num_sections = len(self.state["sketchbook"][id])
                 if num_sections == 0:
                     return "The sketchbook is empty. There are no sections to save."
                 if len(filename) == 0:
-                    return "Provide a filename to save the sketchbook as a file."
-                print("Saving the sketchbook...")
-                current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
-                sketchbook_filename_without_extension = f"{filename}_{current_datetime}"
-                sketchbook_full_absolute_path_without_extension = os.path.abspath(os.path.join(self.config.OUTPUT_PATH, sketchbook_filename_without_extension))
-                try:
-                    sketchbook_output = self.render_sketchbook(title)
-                except ImageNotFoundError as e:
-                    return str(e)
+                    return "Provide a filename for the sketchbook."
+                if format not in ["md", "docx"]:
+                    return "Invalid format. The format must be 'md' (for Markdown) or 'docx' (for Word)."
                 
-                # First Markdown, then other formats
-                response = ""
-                input_format = "md"
-                output_filename = f"{sketchbook_full_absolute_path_without_extension}.{input_format}"
-                output_basename = os.path.basename(output_filename)
-                try:
-                    with open(output_filename, 'w', encoding='utf-8') as f:
-                        f.write(sketchbook_output)
-                    response += f"The sketchbook has been saved as {output_basename}.\n"
-                except Exception as e:
-                    error_message = f"Error: {e}"
-                    print(error_message)
-                    response += f"Error while saving the sketchbook as {input_format}: {error_message}\n"
-                    return response
+                print("Saving the sketchbook...")
 
-                # Now proceed with saving as DOCX
-                output_format = "docx"
-                output_filename = f"{sketchbook_full_absolute_path_without_extension}.{output_format}"
-                output_basename = os.path.basename(output_filename)
                 try:
-                    pypandoc.convert_text(
-                        sketchbook_output,
-                        output_format,
-                        format=input_format,
-                        outputfile=output_filename,
-                        extra_args=["--toc"],
-                        cworkdir=self.config.OUTPUT_PATH,
-                    )
-                except Exception as e:
+                    sketchbook_output = self.render_sketchbook_from_id(id)
+                except ImageNotFoundError as e:
                     error_message = f"Error: {e}"
                     print(error_message)
-                    response += f"Error while saving the sketchbook as {output_format}: {error_message}\n"
-                    return response
+                    return error_message      
+
+                current_datetime = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_filename = f"{filename}_{current_datetime}.{format}"
+                output_basename = os.path.basename(output_filename)
+                output_full_path = os.path.join(self.config.OUTPUT_PATH, output_filename)
+
+                match format:
+                    case "md":
+                        try:
+                            with open(output_full_path, 'w', encoding='utf-8') as f:
+                                f.write(sketchbook_output)
+                        except Exception as e:
+                            error_message = f"Error: {e}"
+                            print(error_message)
+                            return error_message
+                    case "docx":
+                        try:
+                            pypandoc.convert_text(
+                                sketchbook_output,
+                                format,
+                                format="md",
+                                extra_args=["--toc"],
+                                outputfile=output_filename,
+                                cworkdir=self.config.OUTPUT_PATH,
+                            )
+                        except Exception as e:
+                            error_message = f"Error: {e}"
+                            print(error_message)
+                            return error_message
 
                 output = f"The sketchbook has been saved as {output_basename}.\n{get_sketchbook_info()}\nYou must now share the file with the user adding a line like this:\n[file: {output_basename}]"
                 return output, get_tool_metadata()
@@ -915,30 +942,28 @@ class Tools:
             It also keeps track of the checklist items in the state.
         """
 
-        title = tool_input.get("title", "")
+        id = tool_input.get("id", "")
         command = tool_input.get("command", "")
         items = tool_input.get("items", [])
         num_items_to_mark_as_completed = tool_input.get("n", 0)
 
-        print(f"Title: {title}")
+        print(f"ID: {id}")
         print(f"Command: {command}")
         if len(items) > 0:
             print(f"Items:\n---\n{items}\n---")
         if num_items_to_mark_as_completed > 0:
             print(f"Number of items to mark as completed: {num_items_to_mark_as_completed}")
 
-        if len(title) == 0:
-            return "You need to provide a title for the checklist."
+        if len(id) == 0:
+            return "You need to provide an ID for the checklist."
         
-        if not title in self.state["checklist"]:
-            self.state["checklist"][title] = []
+        if id not in self.state["checklist"] and command != "start_new_with_items":
+            checklist_list = "\n".join(self.state["checklist"].keys())
+            return f"Checklist not found. The following checklists are available:\n{checklist_list}"
 
         def render_checklist(render_for_model: bool = True) -> str:
-            checklist = self.state["checklist"][title]
-            if render_for_model:
-                output = f"Checklist: {title}\n"
-            else:
-                output = f"{title.replace('_', ' ').capitalize()}\n"
+            checklist = self.state["checklist"][id]
+            output = f"ID: {id}\n"
             for index, item in enumerate(checklist):
                 if render_for_model:
                     item_state = "COMPLETED" if item['completed'] else "TO DO"
@@ -947,12 +972,10 @@ class Tools:
                 output += f"{index + 1:>2}. [{item_state}] {item['content']}\n"
             return between_xml_tag(output, "checklist") if render_for_model else output
 
-        num_items = len(self.state["checklist"][title])
-
         match command:
             case "start_new_with_items" | "add_items_as_next":
                 if command == "start_new_with_items":
-                    self.state["checklist"][title] = []
+                    self.state["checklist"][id] = []
                     if len(items) == 0:
                         return "This is a new empty checklist. Start by adding items."
                 if len(items) == 0:
@@ -962,9 +985,9 @@ class Tools:
                         "content": i,
                         "completed": False
                     }
-                    self.state["checklist"][title].insert(0, item)
+                    self.state["checklist"][id].insert(0, item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                output = f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
                 return output, render_checklist(render_for_model=False)
             case "add_items_at_the_end":
                 if len(items) == 0:
@@ -974,17 +997,19 @@ class Tools:
                         "content": i,
                         "completed": False
                     }
-                    self.state["checklist"][title].append(item)
+                    self.state["checklist"][id].append(item)
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                output = f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
                 return output, render_checklist(render_for_model=False)
             case "show_items":
+                num_items = len(self.state["checklist"][id])
                 if num_items == 0:
                     return "The checklist is empty. There are no items to show."
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"These are the items in the current checklist:\n\n{render_checklist(title)}"
+                output = f"These are the items in the current checklist:\n\n{render_checklist()}"
                 return output, render_checklist(render_for_model=False)
             case "mark_next_n_items_as_completed":
+                num_items = len(self.state["checklist"][id])
                 if num_items == 0:
                     return "The checklist is empty. There are no items to mark as completed."
                 if num_items_to_mark_as_completed == 0:
@@ -992,12 +1017,12 @@ class Tools:
                 if num_items_to_mark_as_completed > num_items:
                     return f"There are only {num_items} items in the checklist. You can't mark {num_items_to_mark_as_completed} items as completed."
                 for _ in range(num_items_to_mark_as_completed):
-                    to_do_index = next((i for i, item in enumerate(self.state["checklist"][title]) if not item["completed"]), None)
+                    to_do_index = next((i for i, item in enumerate(self.state["checklist"][id]) if not item["completed"]), None)
                     if to_do_index is None:
                         break
-                    self.state["checklist"][title][to_do_index]["completed"] = True
+                    self.state["checklist"][id][to_do_index]["completed"] = True
                 print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist(title)}"
+                output = f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
                 return output, render_checklist(render_for_model=False)
             case _:
                 error_message = f"Invalid command: {command}"
@@ -1052,7 +1077,7 @@ class Tools:
         image = self.utils.store_image(image_format, image_base64)
 
         output = f"A new image with with 'image_id' {image['id']} and this description has been stored in the image catalog:\n\n{image['description']}\nDon't mention the 'image_id' in your response."
-        tool_metadata = f"Prompt: {prompt}\nImage ID: {image['id']}\nImage description: {image['description']}"
+        tool_metadata = f"Prompt:\n{textwrap.wrap(prompt)}\nImage ID: {image['id']}\nImage description:\n{textwrap.wrap(image['description'])}"
 
         return output, tool_metadata
 
@@ -1178,7 +1203,7 @@ class Tools:
         print(f"Image ID: {image_id}")
         image = self.utils.get_image_by_id(image_id)
         if type(image) is not dict:
-            return f"Error: Image not found."  # It's an error
+            return f"Error: Image not found. Look back in this conversation for the correct image ID."  # It's an error
         output = f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}"
         tool_metadata = f"Image ID: {image['id']}\nImage description: {image['description']}"
         return output, tool_metadata
@@ -1371,7 +1396,12 @@ class Tools:
                     continue
 
                 full_path = os.path.join(temp_dir, filename)
-                article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
+                try:
+                    article_text = result.title + "\n\n" + self.utils.process_pdf_document(full_path)
+                except Exception as e:
+                    error_message = f"Error processing PDF for '{filename}': {e}"
+                    print(error_message)
+                    continue
 
                 print(f"Output length: {len(article_text)}")
                 current_date = datetime.now().strftime("%Y-%m-%d")
@@ -1413,8 +1443,10 @@ class Tools:
         """
         filename = tool_input.get("filename")
         content = tool_input.get("content")
+        code_fence_language = tool_input.get("code_fence_language")
         print(f"Filename: {filename}")
         print(f"Content: {content}")
+        print(f"Code fence language: {code_fence_language}")
         
         try:
             full_path = os.path.join(self.config.OUTPUT_PATH, filename)
@@ -1426,6 +1458,11 @@ class Tools:
             error_message = f"Error saving file: {ex}"
             print(error_message)
             return error_message
+
+        self.state["files"][filename] = {
+            "content": content,
+            "code_fence_language": code_fence_language
+        }
 
         output = f"File saved: {filename}"
         tool_metadata = f"Filename: {filename}\nContent: {content}"
