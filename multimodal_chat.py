@@ -673,10 +673,9 @@ class MultimodalChat:
             if history[i]['role'] == 'user':
                 new_history.insert(0, history[i])
 
+        # To reset state for new conversations
         if len(new_history) == len(history):
             self.reset_state(state)
-
-        print(f"State: {state}")
 
         new_messages = self.format_new_messages_for_bedrock_converse(new_history, tools.state)
 
