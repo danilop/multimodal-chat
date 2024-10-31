@@ -64,6 +64,16 @@ class MultimodalChat:
         if import_images:
             self.utils.import_images(self.config.IMAGE_PATH)
 
+    def reset_state(self, state: dict) -> None:
+        state['messages'] = []
+        state['sketchbook'] = {}
+        state['sketchbook_current_section'] = {}
+        state['checklist'] = {}
+        state['archive'] = set()
+        state['documents'] = {}
+        state['improvements'] = ""
+        state['files'] = {}
+
     def run(self) -> None:
         """
         Start the chatbot interface using Gradio.
@@ -83,15 +93,9 @@ class MultimodalChat:
 
             old_content = {}
 
-            state = gr.State({
-                "sketchbook": {},
-                "sketchbook_current_section": {},
-                "checklist": {},
-                "archive": set(),
-                "documents": {},
-                "improvements": "",
-                "files": {},
-            })
+            state = gr.State({})
+
+            self.reset_state(state.value)
 
             gr.Markdown(
                 """
@@ -284,7 +288,7 @@ class MultimodalChat:
         else:
             return None
 
-    def format_messages_for_bedrock_converse(self, history: list[dict], state: dict) -> list[dict]:
+    def format_new_messages_for_bedrock_converse(self, history: list[dict], state: dict) -> list[dict]:
         """
         Format messages for the Bedrock converse API.
 
@@ -661,7 +665,24 @@ class MultimodalChat:
         tools = Tools(self.config, state, self.utils)
         output_queue = queue.Queue()
 
-        messages = self.format_messages_for_bedrock_converse(history, tools.state)
+        # Last user messages, can be more than one if files are uploaded
+        new_history = []
+        for i in range(len(history)-1, -1, -1):
+            if history[i]['role'] == 'assistant':
+                break
+            if history[i]['role'] == 'user':
+                new_history.insert(0, history[i])
+
+        if len(new_history) == len(history):
+            self.reset_state(state)
+
+        print(f"State: {state}")
+
+        new_messages = self.format_new_messages_for_bedrock_converse(new_history, tools.state)
+
+        messages = state['messages']
+        messages.extend(new_messages)
+
         if self.config.STREAMING:
             target_function = self.manage_conversation_flow_stream
         else:
@@ -722,6 +743,9 @@ class MultimodalChat:
         # To clean up dots in the last message and avoid empty messages
         if len(history[-1]['content']) == 0:
             history.pop()
+
+        state['messages'] = messages
+
         yield history, state
 
 

@@ -221,12 +221,12 @@ class Tools:
         tool_metadata += f"\nElapsed time: {elapsed_time:.2f} seconds\n```\n```\n{output}```"
 
         if len(images) != number_of_images:
-            warning_message = f"Expected {number_of_images} images but found {len(images)}."
+            warning_message = f"Expected {number_of_images} images but {len(images)} found."
             print(warning_message)
             return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
         
         if len(text_files) != number_of_text_files:
-            warning_message = f"Expected {number_of_text_files} text files but found {len(text_files)}."
+            warning_message = f"Expected {number_of_text_files} text files but {len(text_files)} found."
             print(warning_message)
             return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
 
@@ -475,7 +475,8 @@ class Tools:
             print(error_message)
             return error_message
         page_text = page_text.strip()
-        print(f"Output length: {len(page_text)}")
+        text_size = len(page_text)
+        print(f"Text size: {text_size}")
         current_date = datetime.now().strftime("%Y-%m-%d")
         metadata = {"wikipedia_page": search_title, "date": current_date}
         metadata_delete = {"wikipedia_page": search_title}
@@ -487,7 +488,7 @@ class Tools:
         keywords_content = self.retrieve_from_archive(keywords)
         print(f"Keywords content length: {len(keywords_content)}")
 
-        output = f"""The full content of the page ({len(page_text)} characters) has been stored in the archive.
+        output = f"""The full content of the page ({text_size} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
             Here is a summary of the page:
             {between_xml_tag(summary, 'summary')}
@@ -496,7 +497,7 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        tool_metadata = f"Title: {search_title}\nKeywords: {keywords}\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
+        tool_metadata = f"Title: {search_title}\nKeywords: {keywords}\nText size: {text_size} characters\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
 
         return output, tool_metadata
 
@@ -539,6 +540,7 @@ class Tools:
                 with urllib.request.urlopen(url) as response:
                     content = response.read()
                 print(f"Document size: {len(content)}")
+                download_size = len(content)
 
                 content_as_io_bytes = io.BytesIO(content)
 
@@ -550,6 +552,7 @@ class Tools:
                     raise Exception(f"Unsupported document format for browser: {url_file_extension}")
                 
                 title = None
+                text_size = len(page_text)
 
             except Exception as e:
                 error_message = f"Error downloading or processing the document: {str(e)}"
@@ -575,12 +578,14 @@ class Tools:
                 print(f"Title:", title)
 
                 page = driver.page_source
-                print(f"Page length:", len(page))
+                print(f"Page size:", len(page))
+                download_size = len(page)
                 
                 page_text = mark_down_formatting(page, url)
-                print(f"Markdown text length:", len(page_text))
+                text_size = len(page_text)
+                print(f"Markdown text length:", text_size)
 
-        if len(page_text) < 10:
+        if text_size < 10:
             return "I am not able or allowed to get content from this URL."
 
         hostname = parsed_url.hostname
@@ -598,7 +603,7 @@ class Tools:
         keywords_content = self.retrieve_from_archive(keywords)
         print(f"Keywords content length: {len(keywords_content)}")
 
-        output = f"""The full content of the URL ({len(page_text)} characters) has been stored in the archive.
+        output = f"""The full content of the URL ({text_size} characters) has been stored in the archive.
             Retrieve more information from the archive using keywords or browse links to get more information.
             A summary of the page:
             {between_xml_tag(summary, 'summary')}
@@ -607,7 +612,7 @@ class Tools:
         
         print(f"Output length: {len(output)}")
 
-        tool_metadata = f"URL: {url}\nKeywords: {keywords}\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
+        tool_metadata = f"URL: {url}\nKeywords: {keywords}\nDownload size: {download_size}\nText size: {text_size} characters\nSummary length: {len(summary)} characters\nKeywords content length: {len(keywords_content)} characters\nOutput length: {len(output)} characters"
 
         return output, tool_metadata
 
@@ -1384,7 +1389,6 @@ class Tools:
         with tempfile.TemporaryDirectory() as temp_dir:
             for i, result in enumerate(arxiv_client.results(search)):
                 print(f"Downloading result {i}: {result.entry_id} - {result.title} ...")
-                tool_metadata += f"\n{i + 1:>2}. {result.entry_id} - {result.title}"
                 abstracts[result.entry_id] = result.title + "\n\n" + result.summary
                 filename = f"{i}.pdf"
                 try:
@@ -1404,6 +1408,7 @@ class Tools:
                     continue
 
                 print(f"Output length: {len(article_text)}")
+                tool_metadata += f"\n{i + 1:>2}. {result.entry_id} - {result.title} ({len(article_text)} characters)"
                 current_date = datetime.now().strftime("%Y-%m-%d")
                 metadata = {"arxiv": result.entry_id, "date": current_date}
                 metadata_delete = {"arxiv": result.entry_id}
@@ -1415,12 +1420,14 @@ class Tools:
 
         all_abstracts = between_xml_tag(all_abstracts, 'abstracts')
 
-        print(f"Abstracts length: {len(all_abstracts)}")
+        print(f"Abstracts length: {len(all_abstracts)} characters")
+        tool_metadata += f"\nAbstracts length: {len(all_abstracts)} characters"
 
         query_content = self.retrieve_from_archive(query)
         query_content = between_xml_tag(query_content, 'documents')
 
-        print(f"Query content length: {len(query_content)}")
+        print(f"Query content length: {len(query_content)} characters")
+        tool_metadata += f"\nQuery content length: {len(query_content)} characters"
 
         output = f"Based on your query, I found the following articles on arXiv:\n\n{all_abstracts}\n\n{query_content}\n\nThe full content of the articles has been stored in the archive. You must retrieve the information you need from each article in the archive."
 
@@ -1442,11 +1449,11 @@ class Tools:
         This function saves a text file with the given filename and content.
         """
         filename = tool_input.get("filename")
-        content = tool_input.get("content")
         code_fence_language = tool_input.get("code_fence_language")
+        content = tool_input.get("content")
         print(f"Filename: {filename}")
-        print(f"Content: {content}")
         print(f"Code fence language: {code_fence_language}")
+        print(f"Content: {content}")
         
         try:
             full_path = os.path.join(self.config.OUTPUT_PATH, filename)
