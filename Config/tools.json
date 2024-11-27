@@ -9,7 +9,7 @@
 					"properties": {
 						"script": {
 							"type": "string",
-							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple and elegant./nTo get an image, chart, or plot written to /tmp, print in output a line with this syntax: Get image '<path/filename>'/nTo get a text file written to /tmp, print in output a line with this syntax: Get text file '<path/filename>'"
+							"description": "The Python script to run. It can run for up to 30 seconds. After that, it is terminated. The running time should be as low as possible. Keep the code simple and elegant./nTo get an image, chart, or plot written to /tmp, print in output a line with this exact syntax: Get image '<path/filename>'/nTo get a text file written to /tmp, print in output a line with this exact syntax: Get text file '<path/filename>'"
 						},
 						"number_of_images": {
 							"type": "integer",

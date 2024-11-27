@@ -793,6 +793,8 @@ class Tools:
             output = f"ID: {id}\nCommand: {command}"
             if id in self.state["sketchbook"]:
                 output += f"\n{get_sketchbook_info()}"
+                num_sections = len(self.state["sketchbook"][id])
+                output += f"\nCurrent section: {self.state['sketchbook_current_section'][id] + 1} of {num_sections}"
             return output
         
         match command:

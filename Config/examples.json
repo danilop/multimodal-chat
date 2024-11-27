@@ -13,12 +13,12 @@
     "Show an image with a car.",
     "Download and show me an image of the Roman Colosseum.",
     "Write a long multi-page article about computing Pi with numerical methods in Python. Run all code snippets and add their outputs and visualizations to the article. Add a nice cover image.",
-    "Generate an image for the article's cover.",
     "You're a ML expert. Write a five-page article explaining multimodal embeddings and how they are trained to an audience of software engineers with no ML experience. Look for recent (2024) articles and info on the topic. Start with the index and then write all sections. Add visualizations. Review the article from the perspective of a technical editor.",
     "Write a multi-page article about testing non-deterministic software. Look for established best practices and recent innovations, including research papers in this area. First, focus on the general problem. Then, dive deep into testing LLMs integratedinto an application. Add images, charts, and diagrams to better explain those concepts. Include practical examples in Python and interesting anecdotes.",
     "Use Python to read all this week AWS launches, group them by category (such as compute, storage, networking, databases, security, etc.), and put them in an audio conversation.",
     "Read the history of how Rome and London were founded from Wikipedia and other sources, compare their origins, and put the result in an audio conversation. Include a look at the places of their founding.",
     "Tell a joke in an audio conversation.",
     "What's the minimum mass for a rocket to reach the Moon? Put the results in a chart.",
-    "Solve this equation symbolically and numerically: x^3 -x^2 + x - 1 = 0"
+    "Solve this equation symbolically and numerically: x^3 -x^2 + x - 1 = 0",
+    "Write a book to introduce a non-developer to the Python programing language, starting from scratch and going to advanced topics such as testing, object-oriented and functional programming, and decorators. Write 10 chapters each with 10 sections. The last two sections of each chapter are questions (multi-choice) and exercises (with solutions). In the tex, connect each chapter with the next and with the previous one. Add a cover image and illustrations to clarify complex concepts. Run all code and include outputs."
 ]

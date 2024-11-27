@@ -788,6 +788,7 @@ class Utils:
             str: The text content of the PDF file.
         """
         text_pages = []
+        print(f"Processing PDF file: {file}")
         reader = PdfReader(file)
         for index, page in enumerate(reader.pages):
             text = page.extract_text((0, 90))

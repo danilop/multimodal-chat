@@ -6,6 +6,7 @@ import os
 import queue
 import re
 import threading
+import time
 import traceback
 import urllib3
 
@@ -183,6 +184,8 @@ class MultimodalChat:
                 yield from self.chat_function(history[:retry_data.index + 1], state)
 
             chatbot.retry(handle_retry, [chatbot, state], [chatbot, state])
+
+            chatbot.clear(self.reset_state, [state])
 
         abs_image_path = os.path.abspath(self.config.IMAGE_PATH)
         abs_output_path = os.path.abspath(self.config.OUTPUT_PATH)
@@ -395,6 +398,7 @@ class MultimodalChat:
                         error_message = f"Error processing {file_name}.{extension} file: {ex}"
                         message_content.append({ "text": error_message })
                         print(error_message)
+                        print(traceback.format_exc())
                 elif extension in self.config.DOCUMENT_FORMATS:
                     with open(file, 'rb') as f:
                         file_content = f.read()
@@ -603,9 +607,20 @@ class MultimodalChat:
             print("Thinking...")
 
             retry_flag = True
+            retry_wait_time = self.config.MIN_RETRY_WAIT_TIME
+
             while retry_flag:
 
-                streaming_response = self.clients.bedrock_runtime_client_text_model.converse_stream(**converse_body)
+                try:
+                    streaming_response = self.clients.bedrock_runtime_client_text_model.converse_stream(**converse_body)
+                except botocore.exceptions.ClientError as e:
+                    if e.response['Error']['Code'] == 'ThrottlingException':
+                        print(f"Retrying in {retry_wait_time} seconds...")
+                        time.sleep(retry_wait_time)
+                        retry_wait_time = min(retry_wait_time * 2, self.config.MAX_RETRY_WAIT_TIME)
+                        continue
+                    else:
+                        raise
 
                 stream_state = {
                     'output_queue': output_queue,
@@ -619,7 +634,9 @@ class MultimodalChat:
                     for chunk in streaming_response['stream']:
                         self.process_streaming_chunk(chunk, messages, tools, stream_state)
                 except (urllib3.exceptions.ReadTimeoutError, botocore.exceptions.EventStreamError) as e:
-                    print("Retrying...")
+                    print(f"Retrying in {retry_wait_time} seconds...")
+                    time.sleep(retry_wait_time)
+                    retry_wait_time = min(retry_wait_time * 2, self.config.MAX_RETRY_WAIT_TIME)
                     continue
 
                 retry_flag = False
@@ -691,13 +708,14 @@ class MultimodalChat:
 
         num_dots = 0
         tot_dots = 3
-        history.append({"role": "assistant", "content": ""})
 
         while thread.is_alive() or not output_queue.empty():
             try:
                 output = output_queue.get(timeout=0.5)
                 match output['format']:
                     case 'text':
+                        if len(history) == 0 or history[-1]['role'] != 'assistant' or 'metadata' in history[-1] or type(history[-1]['content']) != str:
+                            history.append({"role": "assistant", "content": ""})
                         history[-1]['content'] += output['text']
                         history[-1]['content'] = format_response(history[-1]['content'])
                         results = find_images_and_files_in_response(history[-1]['content'])
@@ -706,28 +724,28 @@ class MultimodalChat:
                             for item in results:
                                 match item['format']:
                                     case 'text':
+                                        if type(history[-1]['content']) != str:
+                                            history.append({"role": "assistant", "content": ""})
                                         history[-1]['content'] += item['text']
                                     case 'file':
                                         if len(history[-1]['content']) == 0:
                                             history.pop()
                                         content = {"path": item['filename'], "alt_text": item['description']}
                                         history.append({"role": "assistant", "content": content})
-                                        history.append({"role": "assistant", "content": ""})
                     case 'metadata':
                         title = output['title']
                         metadata = output['metadata']
                         if not metadata.startswith("```"):
                             metadata = f"```\n{metadata}\n```"
-                        if len(history[-1]['content']) == 0:
-                            history.pop()
                         history.append({"role": "assistant", "content": metadata, "metadata": { "title": title }})
-                        history.append({"role": "assistant", "content": ""})
                     case _:
                         print(f"Unknown output format: {output['format']}")
                 yield history, state
                 output_queue.task_done()
             except queue.Empty:
                 num_dots = (num_dots % tot_dots) + 1
+                if len(history) == 0 or 'metadata' in history[-1]:
+                    continue
                 if type(history[-1]['content']) == str:
                     old_content = history[-1]['content']
                     history[-1]['content'] += f"\n{'.' * num_dots}"
