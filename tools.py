@@ -71,7 +71,6 @@ class Tools:
             'python': self.get_tool_result_python,
             'duckduckgo_text_search': self.get_tool_result_duckduckgo_text_search,
             'duckduckgo_news_search': self.get_tool_result_duckduckgo_news_search,
-            'duckduckgo_maps_search': self.get_tool_result_duckduckgo_maps_search,
             'duckduckgo_images_search': self.get_tool_result_duckduckgo_images_search,
             'wikipedia_search': self.get_tool_result_wikipedia_search,
             'wikipedia_geodata_search': self.get_tool_result_wikipedia_geodata_search,
@@ -133,12 +132,10 @@ class Tools:
         """
         tool_use_name = tool_use_block['name']
 
-        print(f"Tool: {tool_use_name}")
-
         try:
             result = self.tool_functions[tool_use_name](tool_use_block['input'])
             formatted_tool_use_name = '🛠️ ' + tool_use_name.replace('_', ' ').title()
-            if type(result) == tuple:
+            if type(result) is tuple:
                 return result[0], formatted_tool_use_name, result[1]
             else:
                 return result, formatted_tool_use_name, ''
@@ -154,7 +151,6 @@ class Tools:
                 - script (str): Python code to execute
                 - install_modules (list): Python packages to install
                 - number_of_images (int): Expected number of images
-                - number_of_text_files (int): Expected number of text files
 
         Returns:
             tuple: Contains:
@@ -170,9 +166,8 @@ class Tools:
         input_script = tool_input.get("script", "")
         install_modules = tool_input.get("install_modules", [])
         number_of_images = tool_input.get("number_of_images", 0)
-        number_of_text_files = tool_input.get("number_of_text_files", 0)
 
-        if type(install_modules) == str:
+        if type(install_modules) is str:
             try:
                 install_modules = json.loads(install_modules)
             except Exception as e:
@@ -183,7 +178,6 @@ class Tools:
         print(f"Script:\n{input_script}")
         print(f"Install modules: {install_modules}")
         print(f"Number of images: {number_of_images}")
-        print(f"Number of text files: {number_of_text_files}")
 
         event = {"input_script": input_script, "install_modules": install_modules}
 
@@ -191,16 +185,14 @@ class Tools:
         result, elapsed_time = self.utils.invoke_lambda_function(self.config.AWS_LAMBDA_FUNCTION_NAME, event) 
         output = result.get("output", "")
         images = result.get("images", [])
-        text_files = result.get("files", [])
 
         len_output = len(output)
         print(f"Output length: {len_output}")
         print(f"Images: {len(images)}")
-        print(f"Text files: {len(text_files)}")
         print(f"Elapsed time: {elapsed_time:.2f} seconds")
 
         if len_output == 0:
-            warning_message = "No output printed."
+            warning_message = "No output printed. You should use print() to display the output you need."
             print(warning_message)
             return warning_message
         
@@ -215,27 +207,20 @@ class Tools:
             tool_metadata += f"\nInstall modules: {install_modules}"
         if number_of_images > 0:
             tool_metadata += f"\nNumber of images: {number_of_images}"
-        if number_of_text_files > 0:
-            tool_metadata += f"\nNumber of text files: {number_of_text_files}"
 
         tool_metadata += f"\nElapsed time: {elapsed_time:.2f} seconds\n```\n```\n{output}```"
 
         if len(images) != number_of_images:
-            warning_message = f"Expected {number_of_images} images but {len(images)} found."
+            warning_message = f"Expected {number_of_images} image files but {len(images)} found."
             print(warning_message)
             return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
         
-        if len(text_files) != number_of_text_files:
-            warning_message = f"Expected {number_of_text_files} text files but {len(text_files)} found."
-            print(warning_message)
-            return f"{output}\n\n{warning_message}", f"{tool_metadata}\n```\n{warning_message}\n```"
-
-        for text_file in images:
+        for image in images:
             # Extract the image format from the file extension
-            image_path = text_file['path']
+            image_path = image['path']
             image_format = os.path.splitext(image_path)[1][1:] # Remove the leading dot
             image_format = 'jpeg' if image_format == 'jpg' else image_format # Quick fix
-            image_base64 = self.utils.get_image_base64(text_file['base64'],
+            image_base64 = self.utils.get_image_base64(image['base64'],
                                             format=image_format,
                                             max_image_size=self.config.MAX_CHAT_IMAGE_SIZE,
                                             max_image_dimension=self.config.MAX_CHAT_IMAGE_DIMENSIONS)
@@ -243,34 +228,32 @@ class Tools:
             image = self.utils.store_image(image_format, image_base64)
             output += f"\nImage {image_path} has been stored in the image catalog with image_id: {image['id']}"
 
-        for text_file in text_files:
-            output += f"{between_xml_tag(text_file['content'], 'file', {'name': text_file['name']})}\n"
-
         return f"{between_xml_tag(output, 'output')}", tool_metadata
 
-    def get_tool_result_duckduckgo_text_search(self, tool_input: dict) -> str:
+    def get_tool_result_duckduckgo_text_search(self, tool_input: dict) -> tuple[str, str]:
         """
         Perform a DuckDuckGo text search and store the results in the archive.
 
         Args:
-            tool_input (dict): A dictionary containing the 'keywords' for the search.
+            tool_input (dict): A dictionary containing:
+                - keywords (str): The search keywords
+                - limit (int, optional): Maximum number of results to return
 
         Returns:
-            str: XML-tagged output containing the search results.
-
-        Note:
-            This function uses MAX_SEARCH_RESULTS from the config to limit the number of results.
-            It also adds the search results to the text index for future retrieval.
+            tuple: Contains:
+                - str: XML-tagged output containing the search results
+                - str: Tool metadata
         """
         search_keywords = tool_input.get("keywords", "")
+        limit = tool_input.get("limit", self.config.MAX_SEARCH_RESULTS)
         print(f"Keywords: {search_keywords}")
         try:
-            results = DDGS().text(search_keywords, max_results=self.config. MAX_SEARCH_RESULTS)
+            results = list(DDGS().text(search_keywords, max_results=limit))
             output = json.dumps(results)
         except Exception as e:
             error_message = f"Error: {e}"
             print(error_message)
-            return error_message
+            return error_message, ""
         output = output.strip()
         print(f"Output length: {len(output)}")
 
@@ -308,58 +291,25 @@ class Tools:
 
         return between_xml_tag(output, "output"), tool_metadata
 
-    def get_tool_result_duckduckgo_maps_search(self, tool_input: dict) -> str:
-        """
-        Perform a DuckDuckGo maps search and store the results in the archive.
-
-        Args:
-            tool_input (dict): A dictionary containing the 'keywords' and 'place' for the search.
-
-        Returns:
-            str: XML-tagged output containing the search results.
-
-        Note:
-            This function uses the global MAX_SEARCH_RESULTS to limit the number of results.
-            It also adds the search results to the text index for future retrieval.
-        """
-        search_keywords = tool_input.get("keywords", "")
-        search_place = tool_input.get("place", "")
-        print(f"Keywords: {search_keywords}")
-        print(f"Place: {search_place}")
-        try:
-            results = DDGS().maps(
-                search_keywords, search_place, max_results=self.config.MAX_SEARCH_RESULTS
-            )
-            output = json.dumps(results)
-        except Exception as e:
-            error_message = f"Error: {e}"
-            print(error_message)
-            return error_message
-        output = output.strip()
-        print(f"Output length: {len(output)}")
-
-        tool_metadata = f"Keywords: {search_keywords}\nPlace: {search_place}\nOutput length: {len(output)} characters"
-
-        return between_xml_tag(output, "output"), tool_metadata
-
     def get_tool_result_wikipedia_search(self, tool_input: dict) -> str:
         """
         Perform a Wikipedia search and return the results.
 
         Args:
-            tool_input (dict): A dictionary containing the 'query' for the search.
+            tool_input (dict): A dictionary containing:
+                - query (str): The search query
+                - limit (int, optional): Maximum number of results to return
 
         Returns:
-            str: XML-tagged output containing the search results.
-
-        Note:
-            This function uses the Wikipedia API to perform the search and returns
-            the results as a JSON string wrapped in XML tags.
+            tuple: Contains:
+                - str: XML-tagged output containing the search results
+                - str: Tool metadata
         """
         search_query = tool_input.get("query", "")
+        limit = tool_input.get("limit", self.config.MAX_SEARCH_RESULTS)
         print(f"Query: {search_query}")
         try:
-            results = wikipedia.search(search_query)
+            results = wikipedia.search(search_query, results=limit)
             output = json.dumps(results)
         except Exception as e:
             error_message = f"Error: {e}"
@@ -575,15 +525,15 @@ class Tools:
                     return error_message
 
                 title = driver.title
-                print(f"Title:", title)
+                print(f"Title: {title}")
 
                 page = driver.page_source
-                print(f"Page size:", len(page))
+                print(f"Page size: {len(page)}")
                 download_size = len(page)
                 
                 page_text = mark_down_formatting(page, url)
                 text_size = len(page_text)
-                print(f"Markdown text length:", text_size)
+                print(f"Markdown text length: {text_size}")
 
         if text_size < 10:
             return "I am not able or allowed to get content from this URL."
@@ -925,116 +875,107 @@ class Tools:
                 print(error_message)
                 return error_message, f"Invalid command: {command}"
 
-    def get_tool_result_checklist(self, tool_input: dict) -> str:
+    def get_tool_result_checklist(self, tool_input: dict) -> tuple[str, str]:
         """
         Process a checklist command and update the checklist state accordingly.
 
-        This function handles various checklist operations such as starting a new checklist,
-        adding items, showing items, and marking items as completed.
+        This function handles various checklist operations such as creating a new checklist,
+        listing checklists, and marking items as done.
 
         Args:
-            tool_input (dict): A dictionary containing the 'command' and optional 'content'.
+            tool_input (dict): A dictionary containing:
+                - action (str): The action to perform ('create', 'list', 'mark')
+                - id (str): Checklist identifier (for create/mark actions)
+                - name (str): Checklist name (for create action)
+                - items (list): List of items (for create action)
+                - item (str): Item to mark as done (for mark action)
 
         Returns:
-            str: A message indicating the result of the operation.
-
-        Commands:
-            - start_new: Initializes a new empty checklist.
-            - add_items_at_the_end: Adds a new item to the checklist.
-            - show_items: Shows all items in the checklist.
-            - mark_next_to_do_item_as_completed: Marks the next to-do item in the checklist as completed.
-
-        Note:
-            This function uses the utils.render_checklist method to render the checklist.
-            It also keeps track of the checklist items in the state.
+            tuple: Contains:
+                - str: A message indicating the result of the operation
+                - str: Tool metadata
         """
-
-        id = tool_input.get("id", "")
-        command = tool_input.get("command", "")
-        items = tool_input.get("items", [])
-        num_items_to_mark_as_completed = tool_input.get("n", 0)
-
-        print(f"ID: {id}")
-        print(f"Command: {command}")
-        if len(items) > 0:
-            print(f"Items:\n---\n{items}\n---")
-        if num_items_to_mark_as_completed > 0:
-            print(f"Number of items to mark as completed: {num_items_to_mark_as_completed}")
-
-        if len(id) == 0:
-            return "You need to provide an ID for the checklist."
+        action = tool_input.get("action")
+        checklist_id = tool_input.get("id")
         
-        if id not in self.state["checklist"] and command != "start_new_with_items":
-            checklist_list = "\n".join(self.state["checklist"].keys())
-            return f"Checklist not found. The following checklists are available:\n{checklist_list}"
+        if "checklist" not in self.state:
+            self.state["checklist"] = {}
 
-        def render_checklist(render_for_model: bool = True) -> str:
-            checklist = self.state["checklist"][id]
-            output = f"ID: {id}\n"
-            for index, item in enumerate(checklist):
-                if render_for_model:
-                    item_state = "COMPLETED" if item['completed'] else "TO DO"
-                else:
-                    item_state = "X" if item['completed'] else " "
-                output += f"{index + 1:>2}. [{item_state}] {item['content']}\n"
-            return between_xml_tag(output, "checklist") if render_for_model else output
-
-        match command:
-            case "start_new_with_items" | "add_items_at_the_beginning":
-                if command == "start_new_with_items":
-                    self.state["checklist"][id] = []
-                    if len(items) == 0:
-                        return "This is a new empty checklist. Start by adding items."
-                if len(items) == 0:
-                    return "You need to provide items to add."
-                for i in reversed(items):
-                    item = {
-                        "content": i,
-                        "completed": False
-                    }
-                    self.state["checklist"][id].insert(0, item)
-                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"New items added as next. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
-                return output, render_checklist(render_for_model=False)
+        match action:
+            case "start_new_with_items":
+                name = tool_input.get("name", "")
+                items = tool_input.get("items", [])
+                
+                if not checklist_id:
+                    return "Checklist ID is required", ""
+                
+                if not items:
+                    return "Items list cannot be empty", ""
+                
+                self.state["checklist"][checklist_id] = {
+                    "name": name,
+                    "items": [{"text": item, "done": False} for item in items]
+                }
+                
+                return f"Checklist '{checklist_id}' created successfully", ""
+                
+            case "add_items_at_the_beginning":
+                items = tool_input.get("items", [])
+                if not checklist_id:
+                    return "Checklist ID is required", ""
+                
+                if not items:
+                    return "Items list cannot be empty", ""
+                
+                self.state["checklist"][checklist_id]["items"] = [{"text": item, "done": False} for item in items] + self.state["checklist"][checklist_id]["items"]
+                
+                return f"Items added to the beginning of checklist '{checklist_id}'", ""
+                
             case "add_items_at_the_end":
-                if len(items) == 0:
-                    return "You need to provide items to add."
-                for i in items:
-                    item = {
-                        "content": i,
-                        "completed": False
-                    }
-                    self.state["checklist"][id].append(item)
-                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"New items added at the end. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
-                return output, render_checklist(render_for_model=False)
+                items = tool_input.get("items", [])
+                if not checklist_id:
+                    return "Checklist ID is required", ""
+                
+                if not items:
+                    return "Items list cannot be empty", ""
+                
+                self.state["checklist"][checklist_id]["items"] = self.state["checklist"][checklist_id]["items"] + [{"text": item, "done": False} for item in items]
+                
+                return f"Items added to the end of checklist '{checklist_id}'", ""
+
             case "show_items":
-                num_items = len(self.state["checklist"][id])
-                if num_items == 0:
-                    return "The checklist is empty. There are no items to show."
-                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"These are the items in the current checklist:\n\n{render_checklist()}"
-                return output, render_checklist(render_for_model=False)
+                if not self.state["checklist"]:
+                    return "No checklists found", ""
+                
+                output = []
+                for cid, checklist in self.state["checklist"].items():
+                    output.append(f"Checklist: {cid}")
+                    output.append(f"Name: {checklist['name']}")
+                    output.append("Items:")
+                    for item in checklist["items"]:
+                        status = "✓" if item["done"] else " "
+                        output.append(f"[{status}] {item['text']}")
+                    output.append("")
+                
+                return "\n".join(output), ""
+                
             case "mark_next_n_items_as_completed":
-                num_items = len(self.state["checklist"][id])
-                if num_items == 0:
-                    return "The checklist is empty. There are no items to mark as completed."
-                if num_items_to_mark_as_completed == 0:
-                    return "You need to provide the number of items to mark as completed."
-                if num_items_to_mark_as_completed > num_items:
-                    return f"There are only {num_items} items in the checklist. You can't mark {num_items_to_mark_as_completed} items as completed."
-                for _ in range(num_items_to_mark_as_completed):
-                    to_do_index = next((i for i, item in enumerate(self.state["checklist"][id]) if not item["completed"]), None)
-                    if to_do_index is None:
-                        break
-                    self.state["checklist"][id][to_do_index]["completed"] = True
-                print(f"Checklist:\n{render_checklist(render_for_model=False)}")
-                output = f"{num_items_to_mark_as_completed} items have been marked as completed. Add more items or mark the next to-do items as completed.\n{render_checklist()}"
-                return output, render_checklist(render_for_model=False)
+                if not checklist_id or checklist_id not in self.state["checklist"]:
+                    return "Invalid checklist ID", ""
+                    
+                n = tool_input.get("n")
+                if not n:
+                    return "Number of items to mark as done is required", ""
+                
+                checklist = self.state["checklist"][checklist_id]
+                items_to_mark = checklist["items"][:n]
+                for item in items_to_mark:
+                    item["done"] = True
+                
+                return f"The first {n} items have been marked as done", ""
+                
             case _:
-                error_message = f"Invalid command: {command}"
-                print(error_message)
-                return error_message
+                return f"Invalid action: {action}", ""
 
     def get_tool_result_generate_image(self, tool_input: dict) -> str:
         """
@@ -1120,7 +1061,7 @@ class Tools:
         for image in images:
             result += f"Found image with 'image_id' {image['id']} and this description:\n\n{image['description']}\n\n"
         if len(result) == 0:
-            return f"No images found."
+            return "No images found."
         result = f"These are images similar to the description in descreasing order of similarity:\n{result}"
         tool_metadata = f"Description: {description}\nMax results: {max_results}"
         return result, tool_metadata
@@ -1159,7 +1100,7 @@ class Tools:
             assert image_id != image["id"]
             result += f"Found image with 'image_id' {image['id']} and this description:\n\n{image['description']}\n\n"
         if len(result) == 0:
-            return f"No similar images found."
+            return "No similar images found."
         result = f"These are images similar to the reference image in descreasing order of similarity:\n{result}"
         tool_metadata = f"Image ID: {image_id}\nMax results: {max_results}"
         return result, tool_metadata
@@ -1191,7 +1132,7 @@ class Tools:
         for image in random_images:
             result += f"Found image with 'image_id' {image['id']} and this description:\n\n{image['description']}\n\n"
         if len(result) == 0:
-            return f"No random images returned."
+            return "No random images returned."
         result = f"These are random images from the image catalog:\n{result}"
         tool_metadata = f"Num: {num}"
         return result, tool_metadata
@@ -1210,7 +1151,7 @@ class Tools:
         print(f"Image ID: {image_id}")
         image = self.utils.get_image_by_id(image_id)
         if type(image) is not dict:
-            return f"Error: Image not found. Look back in this conversation for the correct image ID."  # It's an error
+            return "Error: Image not found. Look back in this conversation for the correct image ID."  # It's an error
         output = f"Found image with 'image_id' {image['id']} and description:\n\n{image['description']}"
         tool_metadata = f"Image ID: {image['id']}\nImage description: {image['description']}"
         return output, tool_metadata
@@ -1398,7 +1339,7 @@ class Tools:
                 except Exception as ex:
                     error_message = f"Error downloading PDF with filename '{filename}': {ex}"
                     print(error_message)
-                    print(f"Skipping this result because it might have been withdrawn.")
+                    print("Skipping this result because it might have been withdrawn.")
                     continue
 
                 full_path = os.path.join(temp_dir, filename)
@@ -1524,10 +1465,15 @@ class Tools:
         if len(filename) == 0:
             return "You need to provide a filename for the output audio file."
 
-        try:
-            conversation_lines = json.loads(conversation)
-        except json.JSONDecodeError:
-            raise ToolError("The output conversation is not a valid JSON")
+        if type(conversation) is str:
+            try:
+                conversation_lines = json.loads(conversation)
+            except json.JSONDecodeError:
+                raise ToolError("The output conversation is not a valid JSON")
+        elif type(conversation) is list:
+            conversation_lines = conversation
+        else:
+            raise ToolError(f"The output conversation is not a valid JSON ({type(conversation)})")
 
         # conversation_lines = [ { "name": "John", "line": "Hello, how are you?" }, { "name": "Jane", "line": "I'm fine, thank you." } ]
         # Get unique names from the conversation

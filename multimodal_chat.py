@@ -21,16 +21,16 @@ from gradio.components.multimodal_textbox import MultimodalData
 
 from rich import print
 
-# Fix for "Error: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead."
-# No other need to import numpy than for this fix
-import numpy as np
-np.float_ = np.float64
-
 from libs import between_xml_tag, load_json_config
 from config import Config
 from clients import Clients
 from utils import Utils
 from tools import Tools, ToolError
+
+# Fix for "Error: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead."
+# No other need to import numpy than for this fix
+import numpy as np
+np.float_ = np.float64
 
 # Fix to avoid the "The current process just got forked..." warning
 os.environ['TOKENIZERS_PARALLELISM'] = 'false'
@@ -237,7 +237,7 @@ class MultimodalChat:
         for m in output_content:
             output_queue.put({"format": "text", "text": m})
 
-    def handle_response(self, output_queue: queue.Queue, response_message: dict) -> dict|None:
+    def handle_response(self, output_queue: queue.Queue, response_message: dict, tools: Tools) -> dict|None:
         """
         Handle the response from the AI model and process any tool use requests.
 
@@ -258,7 +258,7 @@ class MultimodalChat:
                 tool_use_block = content_block['toolUse']
 
                 try:
-                    tool_result_value, formatted_tool_use_name, tool_metadata = self.utils.get_tool_result(tool_use_block)
+                    tool_result_value, formatted_tool_use_name, tool_metadata = tools.get_tool_result(tool_use_block)
 
                     if len(tool_metadata) > 0:
                         output_queue.put({"format": "metadata", "title": formatted_tool_use_name, "metadata": tool_metadata})
@@ -316,7 +316,7 @@ class MultimodalChat:
             m_content = m['content']
 
             # To skip metadata messages from tools
-            if 'metadata' in m and 'title' in m['metadata'] and m['metadata']['title'] is not None:
+            if 'metadata' in m and m['metadata'] is not None and 'title' in m['metadata'] and m['metadata']['title'] is not None:
                 continue
 
             # To skip automatic replies to user empty messages
@@ -452,14 +452,20 @@ class MultimodalChat:
 
         while continue_loop:
 
-            response = self.utils.invoke_text_model(messages, full_system_prompt, temperature, tools=tools.tools_json)
+            response = self.utils.invoke_text_model(messages, full_system_prompt, temperature, tools=tools)
 
-            response_message = response['output']['message']
+            if type(response) is str:
+                response_message = {"role": "assistant", "content": [{"text": response}]}
+            else:
+                response_message = response['output']['message']
+
             messages.append(response_message)
+
+            print(json.dumps(response_message, indent=2))
 
             self.process_response_message(output_queue, response_message)
 
-            follow_up_message = self.handle_response(output_queue, response_message)
+            follow_up_message = self.handle_response(output_queue, response_message, tools)
 
             if follow_up_message is None:
                 # No remaining work to do, return final response to user
@@ -486,10 +492,12 @@ class MultimodalChat:
             accordingly. It also handles tool usage and updates the usage metrics.
         """
         match chunk:
-            case {'messageStart': message_start}:
+            case {'messageStart': _message_start}:
                 stream_state['tool_use_block'] = None
                 stream_state['new_content'] = ''
-            case {'messageStop': message_stop}:
+                if self.config.TEXT_MODEL_REASONIONG:
+                    stream_state['reasoning_content'] = {'text': ''}
+            case {'messageStop': _message_stop}:
                 messages.append(stream_state['new_message'])
             case {'metadata': metadata}:
                 for metric, value in metadata['usage'].items():
@@ -511,14 +519,23 @@ class MultimodalChat:
                         stream_state['output_queue'].put({"format": "text", "text": text})
                     case {'toolUse': tool_use_delta}:
                         stream_state['tool_use_block']['input'] += tool_use_delta['input']
+                    case {'reasoningContent': reasoning_content}:
+                        if 'text' in reasoning_content:
+                            stream_state['reasoning_content']['text'] += reasoning_content['text']
+                            stream_state['output_queue'].put({"format": "text", "text": reasoning_content['text']})
+                        if 'signature' in reasoning_content:
+                            stream_state['reasoning_content']['signature'] = reasoning_content['signature']
+                            stream_state['output_queue'].put({"format": "text", "text": '\n'})
                     case _:
                         print(f"Unknown delta: {chunk}")
-            case {'contentBlockStop': content_block_stop}:
+            case {'contentBlockStop': _content_block_stop}:
                 if len(stream_state['new_content'].strip().strip(' \n')) > 0:
                     stream_state['new_message'] = {
                         "role": "assistant",
                         "content": [ { "text": stream_state['new_content'] } ],
                     }
+                    if self.config.TEXT_MODEL_REASONIONG and len(stream_state['reasoning_content']['text']) > 0:
+                        stream_state['new_message']['content'].insert(0, {"reasoningContent": {"reasoningText": stream_state['reasoning_content'] }})
                     stream_state['new_content'] = ''
                 elif stream_state['new_message'] is None:
                     stream_state['new_message'] = {
@@ -585,8 +602,6 @@ class MultimodalChat:
         """
         continue_loop = True
 
-        full_system_prompt = self.get_system_prompt(system_prompt, tools.state)
-
         while continue_loop:
 
             converse_body = {
@@ -595,11 +610,20 @@ class MultimodalChat:
                 "inferenceConfig": {
                     "maxTokens": self.config.MAX_TOKENS,
                     "temperature": temperature,
-                    },
+                },
             }
 
+            if self.config.TEXT_MODEL_REASONIONG:
+                converse_body["additionalModelRequestFields"] = {
+                    "reasoning_config": {
+                        "type": "enabled",
+                        "budget_tokens": self.config.TEXT_MODEL_BUDGET_TOKENS
+                    },
+                }
+
             if system_prompt is not None:
-                converse_body["system"] = [{"text": system_prompt}]
+                full_system_prompt = self.get_system_prompt(system_prompt, tools.state)
+                converse_body["system"] = [{"text": full_system_prompt}]
 
             if tools:
                 converse_body["toolConfig"] = {"tools": tools.tools_json}
@@ -610,7 +634,7 @@ class MultimodalChat:
             retry_wait_time = self.config.MIN_RETRY_WAIT_TIME
 
             while retry_flag:
-
+                
                 try:
                     streaming_response = self.clients.bedrock_runtime_client_text_model.converse_stream(**converse_body)
                 except botocore.exceptions.ClientError as e:
@@ -633,11 +657,16 @@ class MultimodalChat:
                 try:
                     for chunk in streaming_response['stream']:
                         self.process_streaming_chunk(chunk, messages, tools, stream_state)
-                except (urllib3.exceptions.ReadTimeoutError, botocore.exceptions.EventStreamError) as e:
+                except (urllib3.exceptions.ReadTimeoutError, botocore.exceptions.EventStreamError, urllib3.exceptions.ProtocolError) as e:
+                    print(f"Error processing streaming response: {e}")
+#                   print(traceback.format_exc())
                     print(f"Retrying in {retry_wait_time} seconds...")
                     time.sleep(retry_wait_time)
                     retry_wait_time = min(retry_wait_time * 2, self.config.MAX_RETRY_WAIT_TIME)
                     continue
+                except Exception as e:
+                    print(f"Error processing streaming response: {e}")
+                    return
 
                 retry_flag = False
 
@@ -714,7 +743,7 @@ class MultimodalChat:
                 output = output_queue.get(timeout=0.5)
                 match output['format']:
                     case 'text':
-                        if len(history) == 0 or history[-1]['role'] != 'assistant' or 'metadata' in history[-1] or type(history[-1]['content']) != str:
+                        if len(history) == 0 or history[-1]['role'] != 'assistant' or 'metadata' in history[-1] or type(history[-1]['content']) is not str:
                             history.append({"role": "assistant", "content": ""})
                         history[-1]['content'] += output['text']
                         history[-1]['content'] = format_response(history[-1]['content'])
@@ -724,7 +753,7 @@ class MultimodalChat:
                             for item in results:
                                 match item['format']:
                                     case 'text':
-                                        if type(history[-1]['content']) != str:
+                                        if type(history[-1]['content']) is not str:
                                             history.append({"role": "assistant", "content": ""})
                                         history[-1]['content'] += item['text']
                                     case 'file':
@@ -746,7 +775,7 @@ class MultimodalChat:
                 num_dots = (num_dots % tot_dots) + 1
                 if len(history) == 0 or 'metadata' in history[-1]:
                     continue
-                if type(history[-1]['content']) == str:
+                if type(history[-1]['content']) is str:
                     old_content = history[-1]['content']
                     history[-1]['content'] += f"\n{'.' * num_dots}"
                     yield history, state

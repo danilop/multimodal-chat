@@ -8,7 +8,7 @@ YAIA is a sophisticated multimodal chat interface powered by advanced AI models 
 
 - Search and browse the web in real-time
 - Query Wikipedia for information
-- Perform news and map searches
+- Perform news searches
 - Safely execute Python code that can produce text and images such as charts and diagrams
 - Compose long-form articles mixing text and images
 - Generate, search, and compare images
@@ -74,7 +74,6 @@ Here are examples of how to use various tools:
 1. **Web Interaction**:
    - DuckDuckGo Text Search: Performs web searches
    - DuckDuckGo News Search: Searches for recent news articles
-   - DuckDuckGo Maps Search: Searches for locations and businesses
    - DuckDuckGo Images Search: Searches for publicly available images
    - Web Browser: Browses websites and retrieves their content
 

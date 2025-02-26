@@ -13,3 +13,5 @@ python-pptx
 chardet
 arxiv
 pydub
+pytest
+pytest-cov

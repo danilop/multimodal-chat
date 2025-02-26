@@ -8,6 +8,8 @@ class Config:
 
         # Load model IDs and their regions
         self.TEXT_MODEL = config['MODELS']['TEXT_MODEL']
+        self.TEXT_MODEL_REASONIONG = config['MODELS'].getboolean('TEXT_MODEL_REASONIONG')
+        self.TEXT_MODEL_BUDGET_TOKENS = config['MODELS'].getint('TEXT_MODEL_BUDGET_TOKENS')
         self.IMAGE_GENERATION_MODEL = config['MODELS']['IMAGE_GENERATION_MODEL']
         self.EMBEDDING_MULTIMODAL_MODEL = config['MODELS']['EMBEDDING_MULTIMODAL_MODEL']
         self.EMBEDDING_TEXT_MODEL = config['MODELS']['EMBEDDING_TEXT_MODEL']

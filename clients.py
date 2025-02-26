@@ -47,7 +47,8 @@ class Clients:
     def __init__(self, config: Config):
         self.opensearch_client = get_opensearch_client(config.OPENSEARCH_HOST, config.OPENSEARCH_PORT)
         # AWS SDK for Python (Boto3) clients
-        bedrock_config = botocore.config.Config(read_timeout=60, retries={'max_attempts': 3})
+#       bedrock_config = botocore.config.Config(connect_timeout=300, read_timeout=300, retries={'max_attempts': 3}) # retries={"mode": "standard"}
+        bedrock_config = botocore.config.Config(connect_timeout=5, read_timeout=300) 
         self.bedrock_runtime_client_text_model = boto3.client('bedrock-runtime', region_name=config.TEXT_MODEL_REGION, config=bedrock_config)
         self.bedrock_runtime_client_image_model = boto3.client('bedrock-runtime', region_name=config.IMAGE_GENERATION_MODEL_REGION, config=bedrock_config)
         self.bedrock_runtime_client_embedding_multimodal_model = boto3.client('bedrock-runtime', region_name=config.EMBEDDING_MULTIMODAL_MODEL_REGION, config=bedrock_config)

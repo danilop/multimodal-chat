@@ -266,7 +266,8 @@ class Utils:
                 original_image_bytes = io.BytesIO(decoded_data)
                 Image.open(original_image_bytes) # This fails if the image is not valid
                 return original_image_bytes
-            except:
+            except Exception as e:
+                print(f"Error decoding base64 image: {e}")
                 return None
 
         image_bytes = check_if_base64_image(image_source)
@@ -441,7 +442,7 @@ class Utils:
             print(error_message)
             return error_message
 
-    def invoke_text_model(self, messages: list[dict], system_prompt: str | None = None, temperature: float = 0, tools: list[dict] | None = None, return_last_message_only: bool = False) -> dict | str:
+    def invoke_text_model(self, messages: list[dict], system_prompt: str | None = None, temperature: float | None = None, tools: list[dict] | None = None, return_last_message_only: bool = False) -> dict | str:
         """
         Invoke the text model using Amazon Bedrock's converse API.
 
@@ -463,6 +464,9 @@ class Utils:
         Raises:
             Exception: Propagates any exceptions not related to throttling.
         """
+        if temperature is None:
+            temperature = self.config.TEMPERATURE
+
         converse_body = {
             "modelId": self.config.TEXT_MODEL,
             "messages": messages,
@@ -472,12 +476,19 @@ class Utils:
                 },
         }
 
+        if self.config.TEXT_MODEL_REASONIONG:
+            converse_body["additionalModelRequestFields"] = {
+                "reasoning_config": {
+                    "type": "enabled",
+                    "budget_tokens": self.config.TEXT_MODEL_BUDGET_TOKENS
+                },
+            }
+
         if system_prompt is not None:
             converse_body["system"] = [{"text": system_prompt}]
 
         if tools:
             converse_body["toolConfig"] = {"tools": tools.tools_json}
-
 
         print("Thinking...")
 
@@ -491,7 +502,7 @@ class Utils:
                 retry_flag = False
             except Exception as ex:
                 print(ex)
-                if ex.response['Error']['Code'] == 'ThrottlingException':
+                if ex.response['Error']['Code'] in ['ThrottlingException', 'ModelErrorException']:
                     print(f"Waiting {retry_wait_time} seconds...")
                     time.sleep(retry_wait_time)
                     # Double the wait time for the next try
@@ -503,6 +514,9 @@ class Utils:
                     print(error_message)
                     return error_message
 
+        if retry_wait_time > self.config.MAX_RETRY_WAIT_TIME:
+            response = "Sorry, I was not able to process your request."
+
         print(f"Stop reason: {response['stopReason']}")
 
         for metrics, value in response['usage'].items():
@@ -511,7 +525,7 @@ class Utils:
 
         if return_last_message_only:
             response_message = response['output']['message']
-            last_message = response_message['content'][0]['text']
+            last_message = response_message['content'][-1]['text']
             return last_message
 
         return response
@@ -960,7 +974,8 @@ class Utils:
                     index=index_name,
                 )
                 print(f"Index {index_name} deleted.")
-            except Exception as ex: print(ex)
+            except Exception as ex:
+                print(ex)
 
 
     def create_index(self, index_name: str, index_config: dict) -> None:
@@ -989,7 +1004,8 @@ class Utils:
                     body=index_config,
                 )
                 print(f"Index {index_name} created.")
-            except Exception as ex: print(ex)
+            except Exception as ex:
+                print(ex)
 
 
     def print_index_info(self, index_name: str) -> None:
@@ -1004,7 +1020,8 @@ class Utils:
         try:
             response = self.clients.opensearch_client.indices.get(index=index_name)
             print(json.dumps(response, indent=2))
-        except Exception as ex: print(ex)
+        except Exception as ex:
+            print(ex)
 
 
     def replace_specific_xml_tags(self, text: str) -> str:
@@ -1028,7 +1045,7 @@ class Utils:
         cleaned_text = text
 
         tag_to_replace = {
-            'thinking': 'small',
+            'thinking': 'span',
         }
 
         # Replace specific XML tags with their content

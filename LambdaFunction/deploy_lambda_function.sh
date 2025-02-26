@@ -4,7 +4,7 @@ CONTAINER_TOOL="finch" # Can be docker
 LAMBDA_FUNCTION_MEMORY=2048 # MB
 LAMBDA_FUNCTION_TIMEOUT=60 # seconds
 LAMBDA_FUNCTION_ARCHITECTURE="arm64"
-BASE_NAME="yet-another-chatbot"
+BASE_NAME="yaia"
 
 if ! command -v "${CONTAINER_TOOL}" >/dev/null 2>&1; then
     echo "${CONTAINER_TOOL} does not exist or is not executable. Edit this file to use either 'finch' or 'docker'."
