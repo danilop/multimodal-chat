@@ -191,7 +191,7 @@ You can either use a local OpenSearch instance or connect to a remote server. Fo
 
 For remote server setup, update the client creation code in the main script.
 
-To change password, you need to delete the container uisng `finch` or `docker` and then set a new password.
+To change password, you need to delete the container using `finch` or `docker` and then set a new password.
 
 ## Usage
 
