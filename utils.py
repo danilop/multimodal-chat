@@ -517,7 +517,8 @@ class Utils:
         if retry_wait_time > self.config.MAX_RETRY_WAIT_TIME:
             response = "Sorry, I was not able to process your request."
 
-        print(f"Stop reason: {response['stopReason']}")
+        stop_reason = response['stopReason'] if 'stopReason' in response else 'Unknown'
+        print(f"Stop reason: {stop_reason}")
 
         for metrics, value in response['usage'].items():
             self.usage.update(metrics, value)

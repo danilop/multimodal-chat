@@ -461,8 +461,6 @@ class MultimodalChat:
 
             messages.append(response_message)
 
-            print(json.dumps(response_message, indent=2))
-
             self.process_response_message(output_queue, response_message)
 
             follow_up_message = self.handle_response(output_queue, response_message, tools)
